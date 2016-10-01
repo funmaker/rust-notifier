@@ -1,0 +1,9 @@
+{
+    "feeds": {
+        "funmaker-rss-mikufan": {
+            "engine": "rss",
+            "engineData": "http://feeds.feedburner.com/Mikufancom?format=xml",
+            "color": "#1B94D1"
+        }
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "rust-notifier"
+version = "0.1.0"
+authors = ["Fun Maker <funmaker95@gmail.com>"]
+
+[dependencies]
+serde = "*"
+serde_json = "*"
+serde_macros = "*"
+websocket = "*"
+rss = "0.4"
+time = "0.1"
+curl = "*"
+lazy_static = "*"
+regex = "*"
