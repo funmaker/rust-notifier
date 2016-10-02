@@ -141,15 +141,15 @@ pub struct Config {
     pub feeds: Map<ConfigFeedEntry>
 }
 
-pub fn load_config() -> Config {
-    let config = File::open("feeder.json").expect("Cannot load config file: feeder.json");
-    let config = serde_json::from_reader(config).unwrap_or_else(|err| panic!("Cannot load config file, feeder.json: {}", err));
-    config
+pub fn load_config() -> Result<Config, Box<Error>> {
+    let config = try!(File::open("config.json"));
+    let config: Config = try!(serde_json::from_reader(config));
+    Ok(config)
 }
 
 pub fn save_config(config: &Config) -> Result<(), Box<Error>> {
     use std::io::Write;
-    let mut file = try!(File::create("feeder.json"));
+    let mut file = try!(File::create("config.json"));
     try!(file.write_all(try!(serde_json::to_string(config)).as_bytes()));
     Ok(())
 }
@@ -157,7 +157,7 @@ pub fn save_config(config: &Config) -> Result<(), Box<Error>> {
 pub fn load_feeds() -> Feeds {
     let mut feeds = BTreeMap::new();
     
-    let config = load_config();
+    let config = load_config().unwrap();
     
     for (name, data) in &config.feeds {
         let data = data.clone();

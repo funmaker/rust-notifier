@@ -58,7 +58,8 @@ struct AddResponse {
 #[derive(Deserialize)]
 struct RemoveRequest {
     command: String,
-    feeds: Vec<String>,
+    #[serde(rename="feedName")]
+    feed_name: String,
 }
 
 #[derive(Serialize)]
@@ -67,16 +68,13 @@ struct RemoveResponse {
     feed_name: String,
 }
 
-pub fn handle_request(request: serde_json::Value) -> serde_json::Value {
-    maybe_handle_request(request)
-            .unwrap_or_else(|err| serde_json::to_value(
-                    ErrorResponse{
-                        error: err.description().to_string()
-                    }))
+pub fn response_from_err(err: Box<Error>) -> serde_json::Value {
+    serde_json::to_value(ErrorResponse{
+        error: format!("{}", err),
+    })
 }
 
-
-fn maybe_handle_request(raw_request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+pub fn handle_request(raw_request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     let request: Request = try!(serde_json::from_value(raw_request.clone()));
     
     match &*request.command {
@@ -125,7 +123,7 @@ fn fetch(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
 
 fn list(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     let request: ListRequest = try!(serde_json::from_value(request));
-    let config = load_config();
+    let config = try!(load_config());
     
     Ok(serde_json::to_value(
         ListResponse{
@@ -136,7 +134,7 @@ fn list(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
 
 fn add(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     let request: AddRequest = try!(serde_json::from_value(request));
-    let mut config = load_config();
+    let mut config = try!(load_config());
     
     if let Some(_) = config.feeds.get(&request.feed_name) {
         HandleError::new(format!("Feed {} already exsists.", request.feed_name))
@@ -153,5 +151,16 @@ fn add(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
 
 fn remove(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     let request: RemoveRequest = try!(serde_json::from_value(request));
-    unimplemented!()
+    let mut config = try!(load_config());
+    
+    if let Some(_) = config.feeds.remove(&request.feed_name) {
+        let name = request.feed_name;
+        save_config(&config).map(|()| serde_json::to_value(
+            RemoveResponse{
+                feed_name: name,
+            }
+        ))
+    } else {
+        HandleError::new(format!("Feed {} doesn't exsist.", request.feed_name))
+    }
 }

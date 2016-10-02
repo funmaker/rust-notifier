@@ -26,8 +26,7 @@ pub fn start_websockets(port: u16) -> thread::JoinHandle<()> {
                         Close => break,
                         Text | Binary => {
                             let response = handle_message(message)
-                                    .unwrap_or_else(|err|
-                                            serde_json::to_value(&Feed::from_err("Error in handling request.", err.description())) );
+                                    .unwrap_or_else(|err| response_from_err(err));
                             let response_payload = serde_json::to_string(&response).unwrap();
                             let response_message = Message::text(response_payload);
                             sender.send_message(&response_message).unwrap()
@@ -42,6 +41,5 @@ pub fn start_websockets(port: u16) -> thread::JoinHandle<()> {
 fn handle_message(message: Message) -> Result<serde_json::Value, Box<Error>> {
     let message = message.payload;
     let request = try!(serde_json::from_slice(&message));
-    let response = handle_request(request);
-    Ok(response)
+    handle_request(request)
 }

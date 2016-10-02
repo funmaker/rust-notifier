@@ -66,39 +66,33 @@ window.addEventListener("load", function () {
 	}
 	
 	templates = {
-"handshake":
-'{\n\
-  "ID":0,\n\
-  "data":{\n\
-    "name":"Janusz",\n\
-	"secret":"abc"\n\
-  }\n\
-}',
-"respawn":
-'{\n\
-  "ID":8,\n\
-  "data":{}\n\
-}',
-"split":
-'{\n\
-  "ID":5,\n\
-  "data":{\n\
-    "direction":[0,1]\n\
-  }\n\
-}',
-"update":
-'{\n\
-  "ID":4,\n\
-  "data":{\n\
-    "dots":[\n\
-      {\n\
-        "id":0,\n\
-        "pos":[0,1],\n\
-        "dir":[0,10]\n\
-      }\n\
-    ]\n\
-  }\n\
-}',
+        "fetch":
+`{
+    "command": "fetch",
+    "feeds": [
+        "*"
+    ],
+    "flat": false
+}`,
+        "list":
+`{
+    "command": "list"
+}`,
+        "add":
+`{
+    "command": "add",
+    "feedName": "funmaker-rss-mikufan",
+    "entry": {
+        "color": "#1B94D1",
+        "engine": "rss",
+        "engineData": "http://feeds.feedburner.com/Mikufancom?format=xml"
+    }
+}`,
+        "remove":
+`{
+    "command": "remove",
+    "feedName": "funmaker-rss-mikufan"
+}`,
 	}
 	
 	for (var name in templates) {
