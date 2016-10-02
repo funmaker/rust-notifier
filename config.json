@@ -1,1 +1,20 @@
-{"feeds":{"funmaker-rss-mikufan":{"engine":"rss","engineData":"http://feeds.feedburner.com/Mikufancom?format=xml","color":"#1B94D1"}}}
+{
+  "feeds": {
+    "funmaker-rss-mikufan": {
+      "provider": "rss",
+      "providerData": "http://feeds.feedburner.com/Mikufancom?format=xml",
+      "color": "#1B94D1"
+    }
+  },
+  "providers": {
+    "rss": {
+      "enabled": true
+    }
+  },
+  "interfaces": {
+    "websocket": {
+      "enabled": true,
+      "port": 9039
+    }
+  }
+}

@@ -14,7 +14,6 @@ window.addEventListener("load", function () {
 			if (msg.value){
 				connection.send(msg.value)
 			}
-			msg.value = ""
 			event.preventDefault()
 		}
 	}
@@ -84,8 +83,8 @@ window.addEventListener("load", function () {
     "feedName": "funmaker-rss-mikufan",
     "entry": {
         "color": "#1B94D1",
-        "engine": "rss",
-        "engineData": "http://feeds.feedburner.com/Mikufancom?format=xml"
+        "provider": "rss",
+        "providerData": "http://feeds.feedburner.com/Mikufancom?format=xml"
     }
 }`,
         "remove":

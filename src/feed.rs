@@ -1,7 +1,6 @@
 use super::*;
 
 use std::collections::BTreeMap;
-use std::fs::File;
 
 #[derive(Serialize)]
 pub struct Entry {
@@ -128,32 +127,6 @@ impl Feed {
 pub type Map<T> = BTreeMap<String, T>;
 pub type Feeds = Map<Feed>;
 
-#[derive(Deserialize, Serialize, Clone)]
-pub struct ConfigFeedEntry{
-    pub engine: String,
-    #[serde(rename="engineData")]
-    pub engine_data: serde_json::Value,
-    pub color: Option<String>
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct Config {
-    pub feeds: Map<ConfigFeedEntry>
-}
-
-pub fn load_config() -> Result<Config, Box<Error>> {
-    let config = try!(File::open("config.json"));
-    let config: Config = try!(serde_json::from_reader(config));
-    Ok(config)
-}
-
-pub fn save_config(config: &Config) -> Result<(), Box<Error>> {
-    use std::io::Write;
-    let mut file = try!(File::create("config.json"));
-    try!(file.write_all(try!(serde_json::to_string(config)).as_bytes()));
-    Ok(())
-}
-
 pub fn load_feeds() -> Feeds {
     let mut feeds = BTreeMap::new();
     
@@ -161,8 +134,8 @@ pub fn load_feeds() -> Feeds {
     
     for (name, data) in &config.feeds {
         let data = data.clone();
-        let engine = find_engine(&data.engine);
-        feeds.insert(name.clone(), engine.load_feed(data.engine_data));
+        let feed = fetch_feed(&data.provider, &data.provider_data);
+        feeds.insert(name.clone(), feed);
         if let Some(color) = data.color {
             for entry in feeds.get_mut(name).unwrap().iter_mut() {
                 entry.color = Some(color.clone());

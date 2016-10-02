@@ -68,13 +68,13 @@ struct RemoveResponse {
     feed_name: String,
 }
 
-pub fn response_from_err(err: Box<Error>) -> serde_json::Value {
+pub fn response_from_err(err: Box<Error>) -> Json {
     serde_json::to_value(ErrorResponse{
         error: format!("{}", err),
     })
 }
 
-pub fn handle_request(raw_request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+pub fn handle_request(raw_request: Json) -> Result<Json, Box<Error>> {
     let request: Request = try!(serde_json::from_value(raw_request.clone()));
     
     match &*request.command {
@@ -86,7 +86,7 @@ pub fn handle_request(raw_request: serde_json::Value) -> Result<serde_json::Valu
     }
 }
 
-fn fetch(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+fn fetch(request: Json) -> Result<Json, Box<Error>> {
     let request: FetchRequest = try!(serde_json::from_value(request));
     
     let feeds = get_feeds();
@@ -121,7 +121,7 @@ fn fetch(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
 }
 
 
-fn list(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+fn list(request: Json) -> Result<Json, Box<Error>> {
     let request: ListRequest = try!(serde_json::from_value(request));
     let config = try!(load_config());
     
@@ -132,7 +132,7 @@ fn list(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     ))
 }
 
-fn add(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+fn add(request: Json) -> Result<Json, Box<Error>> {
     let request: AddRequest = try!(serde_json::from_value(request));
     let mut config = try!(load_config());
     
@@ -149,7 +149,7 @@ fn add(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
     }
 }
 
-fn remove(request: serde_json::Value) -> Result<serde_json::Value, Box<Error>> {
+fn remove(request: Json) -> Result<Json, Box<Error>> {
     let request: RemoveRequest = try!(serde_json::from_value(request));
     let mut config = try!(load_config());
     
