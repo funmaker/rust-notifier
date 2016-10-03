@@ -52,8 +52,8 @@ window.addEventListener("load", function () {
 		pre.textContent = event.data
 		try{
 			function replacer(key, value) {
-				if (typeof value === "string" && value.length > 50) {
-					return value.substring(0,50)+"...";
+				if (typeof value === "string" && value.length > 500) {
+					return value.substring(0,500)+"...";
 				}
 				return value;
 			}

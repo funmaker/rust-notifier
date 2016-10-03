@@ -127,29 +127,22 @@ impl Feed {
 pub type Map<T> = BTreeMap<String, T>;
 pub type Feeds = Map<Feed>;
 
-pub fn load_feeds() -> Feeds {
+pub fn fetch_feeds() {
     let mut feeds = BTreeMap::new();
     
     let config = load_config().unwrap();
     
     for (name, data) in &config.feeds {
-        let data = data.clone();
-        let feed = fetch_feed(&data.provider, &data.provider_data);
+        let feed = fetch_feed(name, data);
         feeds.insert(name.clone(), feed);
-        if let Some(color) = data.color {
-            for entry in feeds.get_mut(name).unwrap().iter_mut() {
-                entry.color = Some(color.clone());
-                entry.feed_name = Some(name.clone());
-            }
-        }
     }
     
-    feeds
+    *get_feeds() = feeds;
 }
 
-pub fn start_loading_thread(interval: Duration) -> thread::JoinHandle<()> {
+pub fn start_fetch_thread(interval: Duration) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         thread::sleep(interval);
-        *get_feeds() = load_feeds();
+        fetch_feeds();
     })
 }

@@ -139,8 +139,12 @@ fn add(request: Json) -> Result<Json, Box<Error>> {
     if let Some(_) = config.feeds.get(&request.feed_name) {
         HandleError::new(format!("Feed {} already exsists.", request.feed_name))
     } else {
-        config.feeds.insert(request.feed_name.clone(), request.entry);
         let name = request.feed_name;
+        match maybe_fetch_feed(&name, &request.entry) {
+            Ok(feed) => get_feeds().insert(name.clone(), feed),
+            Err(err) => return HandleError::new(format!("Unable to fetch feed: {}", err)),
+        };
+        config.feeds.insert(name.clone(), request.entry);
         save_config(&config).map(|()| serde_json::to_value(
             AddResponse{
                 feed_name: name,
@@ -155,6 +159,7 @@ fn remove(request: Json) -> Result<Json, Box<Error>> {
     
     if let Some(_) = config.feeds.remove(&request.feed_name) {
         let name = request.feed_name;
+        get_feeds().remove(&name);
         save_config(&config).map(|()| serde_json::to_value(
             RemoveResponse{
                 feed_name: name,

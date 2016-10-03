@@ -38,8 +38,8 @@ pub fn start_providers(config: &Map<Json>) -> Map<Option<thread::JoinHandle<()>>
     map
 }
 
-pub fn fetch_feed(provider: &str, data: &Json) -> Feed {
-    maybe_fetch_feed(provider, data)
+pub fn fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Feed {
+    maybe_fetch_feed(feed_name, feed_data)
             .unwrap_or_else(|err| Feed{
                 notifications: vec![],
                 status: vec![
@@ -50,12 +50,23 @@ pub fn fetch_feed(provider: &str, data: &Json) -> Feed {
             })
 }
 
-fn maybe_fetch_feed(provider: &str, data: &Json) -> Result<Feed, Box<Error>> {
+pub fn maybe_fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Result<Feed, Box<Error>> {
     {
-        if ENABLED_PROVIDERS.lock().unwrap().iter().all(|p| p != provider) {
+        if ENABLED_PROVIDERS.lock().unwrap().iter().all(|p| p != &feed_data.provider) {
             return HandleError::new("Provider is disabled".to_string());
         }
     }
     
-    find_provider(provider).load_feed(data)
+    let mut feed = find_provider(&feed_data.provider).load_feed(&feed_data.provider_data);
+    
+    if let Ok(ref mut feed) = feed {
+        for entry in feed.iter_mut() {
+            if entry.color.is_none() {
+                entry.color = feed_data.color.clone();
+            }
+            entry.feed_name = Some(feed_name.to_string());
+        }
+    }
+    
+    feed
 }

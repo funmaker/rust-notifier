@@ -42,10 +42,10 @@ fn main() {
     let providers = start_providers(&config.providers);
     let interfaces = start_interfaces(&config.interfaces);
     
-    *get_feeds() = load_feeds();
-    let loading_thread = start_loading_thread(Duration::from_secs(60 * 5));
+    fetch_feeds();
+    let fetch_thread = start_fetch_thread(Duration::from_secs(60 * 5));
     
-    loading_thread.join().unwrap();
+    fetch_thread.join().unwrap();
     for (_, thread) in providers {
         if let Some(thread) = thread {
             thread.join().unwrap();
