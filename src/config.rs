@@ -17,9 +17,19 @@ pub struct ConfigFeedEntry{
 }
 
 pub fn load_config() -> Result<Config, Box<Error>> {
-    let config = try!(File::open("config.json"));
-    let config: Config = try!(serde_json::from_reader(config));
-    Ok(config)
+    match File::open("config.json") {
+        Ok(file) => {
+            let config: Config = try!(serde_json::from_reader(file));
+            Ok(config)
+        },
+        Err(_) => {
+            println!("config.json not found.\nGenerating from config_example.json.");
+            let file = try!(File::open("config_example.json"));
+            let config: Config = try!(serde_json::from_reader(file));
+            try!(save_config(&config));
+            Ok(config)
+        },
+    }
 }
 
 pub fn save_config(config: &Config) -> Result<(), Box<Error>> {

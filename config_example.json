@@ -1,9 +1,8 @@
 {
   "feeds": {
-    "funmaker-rss-mikufan": {
+    "example-rss": {
       "provider": "rss",
-      "providerData": "http://feeds.feedburner.com/Mikufancom?format=xml",
-      "color": "#1B94D1"
+      "providerData": "http://feeds.rssboard.org/rssboard"
     }
   },
   "providers": {
