@@ -6,10 +6,12 @@ use std::collections::BTreeMap;
 pub struct Entry {
     pub title: String,
     pub guid: String,
+    #[serde(rename="feedName")]
     pub feed_name: Option<String>,
     pub description: Option<String>,
     pub link: Option<String>,
     pub color: Option<String>,
+    #[serde(rename="imageURL")]
     pub image_url: Option<String>,
     pub timestamp: Option<u64>,
     pub extra: Option<Json>,
