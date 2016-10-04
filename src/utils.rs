@@ -2,6 +2,7 @@ pub extern crate curl;
 
 use super::*;
 use std::fmt::{Display, self, Formatter};
+use std::hash::*;
 
 pub fn to_timestamp(tm: time::Tm) -> u64 {
     let tm = tm.to_timespec();
@@ -27,6 +28,12 @@ pub fn http_get(url: &str) -> Result<Vec<u8>, Box<Error>> {
         try!(transfer.perform());
     }
     Ok(data)
+}
+
+pub fn hash<H: Hash>(data: &H) -> String {
+    let mut state = SipHasher::new();
+    data.hash(&mut state);
+    format!("{:X}", state.finish())
 }
 
 #[derive(Debug)]

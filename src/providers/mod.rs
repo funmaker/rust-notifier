@@ -1,6 +1,7 @@
 use super::*;
 
 mod rss;
+mod chan;
 
 lazy_static! {
     static ref ENABLED_PROVIDERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -16,6 +17,7 @@ pub trait Provider : Sync {
 fn find_provider(name: &str) -> &'static Provider {
     match name {
         "rss" => rss::PROVIDER,
+        "chan" => chan::PROVIDER,
         _ => panic!("Cannot find {} provider.", name),
     }
 }
@@ -43,7 +45,7 @@ pub fn fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Feed {
             .unwrap_or_else(|err| Feed{
                 notifications: vec![],
                 status: vec![
-                    Entry::new(&format!("Unable to fetch, {}", err))
+                    Entry::new(&format!("Unable to fetch, {}", err), &hash(&(timestamp(), err.description())))
                             .timestamp(timestamp())
                             .color("#FF0000")
                 ]

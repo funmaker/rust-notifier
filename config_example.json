@@ -1,19 +1,29 @@
 {
-  "feeds": {
-    "example-rss": {
-      "provider": "rss",
-      "providerData": "http://feeds.rssboard.org/rssboard"
+    "feeds": {
+        "example-rss": {
+            "provider": "rss",
+            "providerData": "http://feeds.rssboard.org/rssboard"
+        },
+        "example-chan": {
+            "provider": "chan",
+            "providerData": {
+                "boards": ["g"],
+                "filters": ["dpt"]
+            }
+        }
+    },
+    "providers": {
+        "rss": {
+            "enabled": true
+        },
+        "chan": {
+            "enabled": true
+        }
+    },
+    "interfaces": {
+        "websocket": {
+            "enabled": true,
+            "port": 9039
+        }
     }
-  },
-  "providers": {
-    "rss": {
-      "enabled": true
-    }
-  },
-  "interfaces": {
-    "websocket": {
-      "enabled": true,
-      "port": 9039
-    }
-  }
 }

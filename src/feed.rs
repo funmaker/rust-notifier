@@ -5,26 +5,28 @@ use std::collections::BTreeMap;
 #[derive(Serialize)]
 pub struct Entry {
     pub title: String,
+    pub guid: String,
     pub feed_name: Option<String>,
     pub description: Option<String>,
     pub link: Option<String>,
-    pub guid: Option<String>,
     pub color: Option<String>,
     pub image_url: Option<String>,
     pub timestamp: Option<u64>,
+    pub extra: Option<Json>,
 }
 
 impl Entry {
-    pub fn new(title: &str) -> Entry {
+    pub fn new(title: &str, guid: &str) -> Entry {
         Entry{
             title: title.to_string(),
+            guid: guid.to_string(),
             feed_name: None,
             description: None,
             link: None,
-            guid: None,
             color: None,
             image_url: None,
             timestamp: None,
+            extra: None,
         }
     }
     
@@ -35,11 +37,6 @@ impl Entry {
     
     pub fn link(mut self, link: &str) -> Entry {
         self.link = Some(link.to_string());
-        self
-    }
-    
-    pub fn guid(mut self, guid: &str) -> Entry {
-        self.link = Some(guid.to_string());
         self
     }
     
@@ -58,33 +55,38 @@ impl Entry {
         self
     }
     
+    pub fn extra(mut self, extra: Json) -> Entry {
+        self.extra = Some(extra);
+        self
+    }
+    
     pub fn set_description(mut self, description: Option<String>) -> Entry {
-        self.description = description.clone();
+        self.description = description;
         self
     }
     
     pub fn set_link(mut self, link: Option<String>) -> Entry {
-        self.link = link.clone();
-        self
-    }
-    
-    pub fn set_guid(mut self, guid: Option<String>) -> Entry {
-        self.link = guid.clone();
+        self.link = link;
         self
     }
     
     pub fn set_color(mut self, color: Option<String>) -> Entry {
-        self.color = color.clone();
+        self.color = color;
         self
     }
     
     pub fn set_image_url(mut self, image_url: Option<String>) -> Entry {
-        self.image_url = image_url.clone();
+        self.image_url = image_url;
         self
     }
     
     pub fn set_timestamp(mut self, timestamp: Option<u64>) -> Entry {
-        self.timestamp = timestamp.clone();
+        self.timestamp = timestamp;
+        self
+    }
+    
+    pub fn set_extra(mut self, extra: Option<Json>) -> Entry {
+        self.extra = extra;
         self
     }
 }
@@ -114,7 +116,7 @@ impl Feed {
     pub fn from_err(err: &str, desc: &str) -> Feed {
         Feed {
             status: vec![
-                Entry::new(err)
+                Entry::new(err, &hash(&(timestamp(), err, desc)))
                     .description(desc)
                     .color("#FF0000")
                     .timestamp(timestamp())
