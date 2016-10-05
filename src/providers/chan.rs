@@ -69,7 +69,7 @@ impl Provider for ChanEngine {
                         page: page.page,
                         board: board.clone(),
                     });
-                    let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url), &hash(&(op.no, board)))
+                    let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url.replace("-", " ")), &hash(&(op.no, board)))
                             .set_description(op.com)
                             .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
                             .timestamp(op.time as u64)
