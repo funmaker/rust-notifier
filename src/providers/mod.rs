@@ -48,6 +48,7 @@ pub fn fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Feed {
                     Entry::new(&format!("Unable to fetch, {}", err), &hash(&(timestamp(), err.description())))
                             .timestamp(timestamp())
                             .color("#FF0000")
+                            .feed_name(feed_name)
                 ]
             })
 }

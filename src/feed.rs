@@ -62,6 +62,11 @@ impl Entry {
         self
     }
     
+    pub fn feed_name(mut self, feed_name: &str) -> Entry {
+        self.feed_name = Some(feed_name.to_string());
+        self
+    }
+    
     pub fn set_description(mut self, description: Option<String>) -> Entry {
         self.description = description;
         self
@@ -89,6 +94,11 @@ impl Entry {
     
     pub fn set_extra(mut self, extra: Option<Json>) -> Entry {
         self.extra = extra;
+        self
+    }
+    
+    pub fn set_feed_name(mut self, feed_name: Option<String>) -> Entry {
+        self.feed_name = feed_name;
         self
     }
 }
