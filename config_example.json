@@ -24,6 +24,10 @@
         "websocket": {
             "enabled": true,
             "port": 9039
+        },
+        "tcp": {
+            "enabled": true,
+            "port": 9040
         }
     }
 }

@@ -6,7 +6,7 @@ HTMLElement.prototype.appendFirst=function(childNode){
 };
 
 window.addEventListener("load", function () {
-	connection = new WebSocket("ws://127.0.0.1:9039")
+	connection = new WebSocket("ws://ks.sebi.moe:9039")
 	connection.onopen = function () {
 		console.log("Connection opened")
 		document.getElementById("form").onsubmit = function (event) {
