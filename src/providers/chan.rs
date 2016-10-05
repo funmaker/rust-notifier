@@ -27,8 +27,8 @@ struct OP {
     time: u64,
     sub: Option<String>,
     com: Option<String>,
-    tim: u64,
-    ext: String,
+    tim: Option<u64>,
+    ext: Option<String>,
     replies: i32,
     images: i32,
     semantic_url: String,
@@ -69,12 +69,15 @@ impl Provider for ChanEngine {
                         page: page.page,
                         board: board.clone(),
                     });
-                    feed.status.push(Entry::new(&op.sub.unwrap_or(op.semantic_url), &hash(&(op.no, board)))
+                    let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url), &hash(&(op.no, board)))
                             .set_description(op.com)
                             .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
-                            .image_url(&format!("https://i.4cdn.org/{}/{}.{}", board, op.tim, op.ext))
                             .timestamp(op.time as u64)
-                            .extra(extra));
+                            .extra(extra);
+                    if let (Some(tim), Some(ext)) = (op.tim, op.ext) {
+                        entry = entry.image_url(&format!("https://i.4cdn.org/{}/{}{}", board, tim, ext));
+                    }
+                    feed.status.push(entry);
                 }
             }
         }

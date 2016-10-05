@@ -137,6 +137,7 @@ pub fn fetch_feeds() {
     let config = load_config().unwrap();
     
     for (name, data) in &config.feeds {
+        println!("Fetching: {}", name);
         let feed = fetch_feed(name, data);
         feeds.insert(name.clone(), feed);
     }
