@@ -22,7 +22,7 @@ impl Interface for WebSocketInterface {
         
         let settings: Settings = serde_json::from_value(config.clone()).unwrap();
 
-        let server = Server::bind(("127.0.0.1", settings.port)).unwrap();
+        let server = Server::bind(("0.0.0.0", settings.port)).unwrap();
         
         Some(thread::spawn(move || {
             for connection in server {

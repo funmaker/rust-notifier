@@ -20,7 +20,7 @@ impl Interface for TcpInterface {
         
         let settings: Settings = serde_json::from_value(config.clone()).unwrap();
 
-        let server = TcpListener::bind(("127.0.0.1", settings.port)).unwrap();
+        let server = TcpListener::bind(("0.0.0.0", settings.port)).unwrap();
         
         Some(thread::spawn(move || {
             for connection in server.incoming() {
