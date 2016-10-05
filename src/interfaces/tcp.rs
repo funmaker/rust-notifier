@@ -35,7 +35,7 @@ impl Interface for TcpInterface {
                         let message = serde_json::from_str(&line).unwrap();
                         let response = handle_request(message)
                                 .unwrap_or_else(|err| response_from_err(err));
-                        let response_payload = serde_json::to_string(&response).unwrap();
+                        let response_payload = serde_json::to_string(&response).unwrap() + "\n";
                         connection.write_all(response_payload.as_bytes()).unwrap();
                     }
                 });
