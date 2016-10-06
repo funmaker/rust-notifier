@@ -10,7 +10,6 @@ struct TcpInterface;
 
 #[derive(Deserialize)]
 struct Settings {
-    enabled: bool,
     port: u16,
 }
 

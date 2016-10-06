@@ -2,9 +2,6 @@
 #![feature(conservative_impl_trait)]
 #![feature(plugin)]
 #![plugin(serde_macros)]
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_variables)]
 
 pub extern crate serde_json;
 pub extern crate time;

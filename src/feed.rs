@@ -155,7 +155,7 @@ pub fn fetch_feeds() {
 }
 
 pub fn start_fetch_thread(interval: Duration) -> thread::JoinHandle<()> {
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
     use std::io::{self, Write};
     thread::spawn(move || {
         loop{

@@ -15,7 +15,6 @@ struct ErrorResponse {
 
 #[derive(Deserialize)]
 struct FetchRequest {
-    command: String,
     flat: bool,
     feeds: Vec<String>, // eg. "*", "funmaker-*", "mumble-twitch-wonziu"
 }
@@ -33,7 +32,6 @@ struct FlatFetchResponse<'a> {
 
 #[derive(Deserialize)]
 struct ListRequest {
-    command: String,
 }
 
 #[derive(Serialize)]
@@ -43,7 +41,6 @@ struct ListResponse {
 
 #[derive(Deserialize)]
 struct AddRequest {
-    command: String,
     #[serde(rename="feedName")]
     feed_name: String,
     entry: ConfigFeedEntry,
@@ -57,7 +54,6 @@ struct AddResponse {
 
 #[derive(Deserialize)]
 struct RemoveRequest {
-    command: String,
     #[serde(rename="feedName")]
     feed_name: String,
 }
@@ -99,7 +95,7 @@ fn fetch(request: Json) -> Result<Json, Box<Error>> {
     }
     
     let matched: Map<&Feed> = feeds.iter()
-            .filter(|&(name, feed)| filters.iter()
+            .filter(|&(name, _)| filters.iter()
                     .any(|filter| filter.is_match(name)))
             .map(|(name, feed)| (name.clone(), feed))
             .collect();
@@ -122,7 +118,7 @@ fn fetch(request: Json) -> Result<Json, Box<Error>> {
 
 
 fn list(request: Json) -> Result<Json, Box<Error>> {
-    let request: ListRequest = try!(serde_json::from_value(request));
+    let _request: ListRequest = try!(serde_json::from_value(request));
     let config = try!(load_config());
     
     Ok(serde_json::to_value(

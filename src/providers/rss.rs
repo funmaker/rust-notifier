@@ -3,11 +3,11 @@ extern crate rss;
 use super::super::*;
 use self::rss::Channel;
 use std::io::BufReader;
-pub static PROVIDER: &'static Provider = &RSSEngine;
+pub static PROVIDER: &'static Provider = &RSSProvider;
 
-struct RSSEngine;
+struct RSSProvider;
 
-impl Provider for RSSEngine {
+impl Provider for RSSProvider {
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
         let url: String = try!(serde_json::from_value(data.clone()));

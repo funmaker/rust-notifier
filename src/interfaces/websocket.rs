@@ -1,9 +1,7 @@
 use super::super::*;
 
 extern crate websocket;
-use self::websocket::{Server, Message, Receiver, Sender, WebSocketStream, Client};
-use self::websocket::ws::dataframe::DataFrame;
-use self::websocket::result::WebSocketError;
+use self::websocket::{Server, Message, Receiver, Sender};
 
 pub static INTERFACE: &'static Interface = &WebSocketInterface;
 
@@ -11,7 +9,6 @@ struct WebSocketInterface;
 
 #[derive(Deserialize)]
 struct Settings {
-    enabled: bool,
     port: u16,
 }
 

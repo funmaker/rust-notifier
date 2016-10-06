@@ -1,11 +1,10 @@
 extern crate regex;
 
 use super::super::*;
-use std::io::BufReader;
 use self::regex::RegexBuilder;
-pub static PROVIDER: &'static Provider = &ChanEngine;
+pub static PROVIDER: &'static Provider = &ChanProvider;
 
-struct ChanEngine;
+struct ChanProvider;
 
 #[derive(Deserialize)]
 struct Data {
@@ -42,7 +41,7 @@ struct OPExtra {
     board: String,
 }
 
-impl Provider for ChanEngine {
+impl Provider for ChanProvider {
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
         let data: Data = try!(serde_json::from_value(data.clone()));

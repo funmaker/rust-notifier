@@ -2,13 +2,14 @@ use super::*;
 
 mod rss;
 mod chan;
+mod youtube;
 
 lazy_static! {
     static ref ENABLED_PROVIDERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 }
 
 pub trait Provider : Sync {
-    fn start(&self, config: &Json) -> Option<thread::JoinHandle<()>>{
+    fn start(&self, _config: &Json) -> Option<thread::JoinHandle<()>>{
         None
     }
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>>;
@@ -18,6 +19,7 @@ fn find_provider(name: &str) -> &'static Provider {
     match name {
         "rss" => rss::PROVIDER,
         "chan" => chan::PROVIDER,
+        "youtube" => youtube::PROVIDER,
         _ => panic!("Cannot find {} provider.", name),
     }
 }
@@ -67,7 +69,9 @@ pub fn maybe_fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Result<
             if entry.color.is_none() {
                 entry.color = feed_data.color.clone();
             }
-            entry.feed_name = Some(feed_name.to_string());
+            if entry.feed_name.is_none() {
+                entry.feed_name = Some(feed_name.to_string());
+            }
         }
     }
     
