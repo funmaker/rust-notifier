@@ -4,10 +4,9 @@ Server in Rust for generating notifications from RSS, twitch activity, 4chan thr
 ## Features
 - [X] Websocket support
 - [X] TCP support
-- [ ] CLI support
 - [X] RSS support
 - [X] 4chan support
-- [ ] YouTube Subscriptions support
+- [X] YouTube Subscriptions support
 - [ ] Twitter support
 - [ ] Twitch support
 
