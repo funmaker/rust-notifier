@@ -45,6 +45,8 @@ All requests and responses are Json objects.
 #### Provider specific Config
 ##### RSS
 String value of the URL of RSS feed.
+##### YouTube Subscriptions
+String value of YouTube Channel's ID.
 ##### 4chan
 
 | Field   | Type   | Comment |

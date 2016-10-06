@@ -27,7 +27,6 @@ struct OP {
     sub: Option<String>,
     com: Option<String>,
     tim: Option<u64>,
-    ext: Option<String>,
     replies: i32,
     images: i32,
     semantic_url: String,
@@ -75,8 +74,8 @@ impl Provider for ChanProvider {
                             .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
                             .timestamp(op.time as u64)
                             .extra(extra);
-                    if let (Some(tim), Some(ext)) = (op.tim, op.ext) {
-                        entry = entry.image_url(&format!("https://i.4cdn.org/{}/{}{}", board, tim, ext));
+                    if let Some(tim) = op.tim {
+                        entry = entry.image_url(&format!("https://i.4cdn.org/{}/{}s.jpg", board, tim));
                     }
                     feed.status.push(entry);
                 }
