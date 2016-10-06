@@ -42,7 +42,6 @@ fn main() {
     let providers = start_providers(&config.providers);
     let interfaces = start_interfaces(&config.interfaces);
     
-    fetch_feeds();
     let fetch_thread = start_fetch_thread(Duration::from_secs(60 * 5));
     
     fetch_thread.join().unwrap();

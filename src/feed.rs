@@ -147,7 +147,6 @@ pub fn fetch_feeds() {
     let config = load_config().unwrap();
     
     for (name, data) in &config.feeds {
-        println!("Fetching: {}", name);
         let feed = fetch_feed(name, data);
         feeds.insert(name.clone(), feed);
     }
@@ -156,8 +155,20 @@ pub fn fetch_feeds() {
 }
 
 pub fn start_fetch_thread(interval: Duration) -> thread::JoinHandle<()> {
+    use std::time::{Duration, Instant};
+    use std::io::{self, Write};
     thread::spawn(move || {
-        thread::sleep(interval);
-        fetch_feeds();
+        loop{
+            let now = Instant::now();
+            print!("Fetching feeds... ");
+            let _ = io::stdout().flush();
+            
+            fetch_feeds();
+            
+            let dur = now.elapsed();
+            println!("Done! ({}s)", dur.as_secs());
+            
+            thread::sleep(interval);
+        }
     })
 }
