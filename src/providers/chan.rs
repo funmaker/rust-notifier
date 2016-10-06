@@ -2,7 +2,7 @@ extern crate regex;
 
 use super::super::*;
 use std::io::BufReader;
-use self::regex::Regex;
+use self::regex::RegexBuilder;
 pub static PROVIDER: &'static Provider = &ChanEngine;
 
 struct ChanEngine;
@@ -48,7 +48,9 @@ impl Provider for ChanEngine {
         let data: Data = try!(serde_json::from_value(data.clone()));
         
         let wrapped_filters = data.filters.iter()
-                .map(|filter| Regex::new(filter));
+                .map(|filter| RegexBuilder::new(filter)
+                        .case_insensitive(true)
+                        .compile());
         let mut filters = Vec::new();
         
         for filter in wrapped_filters {
