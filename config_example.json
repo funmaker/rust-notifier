@@ -18,6 +18,10 @@
         },
         "chan": {
             "enabled": true
+        },
+        "youtube": {
+            "enabled": false,
+            "apiKey":"===YOUR API KEY==="
         }
     },
     "interfaces": {
