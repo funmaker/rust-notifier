@@ -22,6 +22,9 @@
         "youtube": {
             "enabled": false,
             "apiKey":"===YOUR API KEY==="
+        },
+        "wonziu": {
+            "enabled":false,
         }
     },
     "interfaces": {

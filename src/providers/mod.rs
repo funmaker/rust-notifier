@@ -3,16 +3,17 @@ use super::*;
 mod rss;
 mod chan;
 mod youtube;
+mod wonziu;
 
 lazy_static! {
     static ref ENABLED_PROVIDERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 }
 
 pub trait Provider : Sync {
-    fn start(&self, _config: &Json) -> Option<thread::JoinHandle<()>>{
+    fn start(&'static self, _config: &Json) -> Option<thread::JoinHandle<()>>{
         None
     }
-    fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>>;
+    fn load_feed(&'static self, data: &Json) -> Result<Feed, Box<Error>>;
 }
 
 fn find_provider(name: &str) -> &'static Provider {
@@ -20,6 +21,7 @@ fn find_provider(name: &str) -> &'static Provider {
         "rss" => rss::PROVIDER,
         "chan" => chan::PROVIDER,
         "youtube" => youtube::PROVIDER,
+        "wonziu" => wonziu::PROVIDER,
         _ => panic!("Cannot find {} provider.", name),
     }
 }
