@@ -28,7 +28,6 @@ impl Provider for WonziuProvider {
                 let mut message: Message = message.unwrap();
                 match message.opcode {
                     Text | Binary => {
-                        println!("{}", String::from_utf8_lossy(&message.payload));
                         if let Some(msg) = handle_message(serde_json::from_slice(&message.payload).unwrap()) {
                             sender.send_message(&msg).unwrap();
                         }
@@ -74,7 +73,7 @@ impl Provider for WonziuProvider {
 struct WonziuMessage {
     #[serde(rename="type")]
     kind: String,
-    data: Option<WonziuData>,
+    data: Option<Json>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -97,20 +96,44 @@ struct WonziuTopic {
 fn handle_message(message: WonziuMessage) -> Option<Message<'static>> {
     match &message.kind[..] {
         "status" => {
-            *STATUS.lock().unwrap() = message.data.unwrap();
+            *STATUS.lock().unwrap() = serde_json::from_value(message.data.unwrap()).unwrap();
             None
         }
         "update" => {
-            let status = message.data.unwrap();
-            if let Some(stream) = status.stream {
-                STATUS.lock().unwrap().stream = Some(stream);
-            }
-            if let Some(topic) = status.topic {
-                STATUS.lock().unwrap().topic = Some(topic);
-            }
+            let status = serde_json::to_value(&*STATUS.lock().unwrap());
+            let status_new = message.data.unwrap();
+            *STATUS.lock().unwrap() = serde_json::from_value(json_merge(status, status_new)).unwrap();
             None
         }
         "ping" => Some(Message::text(serde_json::to_string(&WonziuMessage{kind: "pong".to_string(), data:None}).unwrap())),
         _ => unreachable!(),
+    }
+}
+
+fn json_merge(obj: Json, diff: Json) -> Json {
+    match diff {
+        Json::Array(diff) => {
+                if let Json::Array(mut obj) = obj {
+                    for (n, el) in diff.into_iter().enumerate() {
+                        let merged = json_merge(obj[n].clone(), el);
+                        obj.insert(n, merged);
+                    }
+                    Json::Array(obj)
+                } else {
+                    Json::Array(diff)
+                }
+            },
+        Json::Object(diff) => {
+                if let Json::Object(mut obj) = obj {
+                    for (k, v) in diff.into_iter() {
+                        let merged = json_merge(obj.remove(&k).unwrap_or(Json::Null), v);
+                        obj.insert(k, merged);
+                    }
+                    Json::Object(obj)
+                } else {
+                    Json::Object(diff)
+                }
+            },
+        _ => diff,
     }
 }
