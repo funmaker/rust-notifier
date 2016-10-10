@@ -7,7 +7,7 @@ Server in Rust for generating notifications from RSS, twitch activity, 4chan thr
 - [X] RSS support
 - [X] 4chan support
 - [X] YouTube Subscriptions support
-- [ ] Twitter support
+- [X] Jadisco.pl support
 - [ ] Twitch support
 
 ## API Reference
