@@ -2,6 +2,7 @@ use super::*;
 
 extern crate regex;
 use self::regex::Regex;
+use std::sync::mpsc;
 
 #[derive(Deserialize)]
 struct Request {
@@ -64,22 +65,39 @@ struct RemoveResponse {
     feed_name: String,
 }
 
+#[derive(Deserialize)]
+struct UpdateRequest;
+
+#[derive(Serialize)]
+pub struct UpdateResponse<'a> {
+    #[serde(rename="feedName")]
+    pub status: Vec<&'a Entry>,
+    pub notifications: Vec<&'a Entry>,
+}
+
 pub fn response_from_err(err: Box<Error>) -> Json {
     serde_json::to_value(ErrorResponse{
         error: format!("{}", err),
     })
 }
 
-pub fn handle_request(raw_request: Json) -> Result<Json, Box<Error>> {
+pub fn handle_request(raw_request: Json, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
     let request: Request = try!(serde_json::from_value(raw_request.clone()));
     
-    match &*request.command {
+    let mut response = match &*request.command {
         "fetch" => fetch(raw_request),
         "list" => list(raw_request),
         "add" => add(raw_request),
         "remove" => remove(raw_request),
+        "update" => update(raw_request, tx),
         _ => HandleError::new(format!("Unknown command {}", request.command)),
+    };
+    
+    if let Ok(Json::Object(ref mut response)) = response {
+        response.insert("command".to_string(), Json::String(request.command));
     }
+    
+    response
 }
 
 fn fetch(request: Json) -> Result<Json, Box<Error>> {
@@ -118,7 +136,7 @@ fn fetch(request: Json) -> Result<Json, Box<Error>> {
 
 
 fn list(request: Json) -> Result<Json, Box<Error>> {
-    let _request: ListRequest = try!(serde_json::from_value(request));
+    //let _request: ListRequest = try!(serde_json::from_value(request));
     let config = try!(load_config());
     
     Ok(serde_json::to_value(
@@ -164,4 +182,15 @@ fn remove(request: Json) -> Result<Json, Box<Error>> {
     } else {
         HandleError::new(format!("Feed {} doesn't exsist.", request.feed_name))
     }
+}
+
+fn update(request: Json, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
+    //let _request: UpdateRequest = try!(serde_json::from_value(request));
+    
+    add_updater(tx);
+    
+    Ok(serde_json::to_value(UpdateResponse {
+        status: vec![],
+        notifications: vec![],
+    }))
 }

@@ -3,6 +3,7 @@ use super::super::*;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::net::{TcpListener};
+use std::sync::mpsc;
 
 pub static INTERFACE: &'static Interface = &TcpInterface;
 
@@ -24,18 +25,25 @@ impl Interface for TcpInterface {
         Some(thread::spawn(move || {
             for connection in server.incoming() {
                 thread::spawn(move || {
-                    let mut connection = connection.unwrap();
-                    let reader = BufReader::new(connection.try_clone().unwrap());
-                    for line in reader.lines() {
-                        let line = line.unwrap();
-                        if line == "" {
-                            continue;
+                    let connection = connection.unwrap();
+                    let mut sender = connection.try_clone().unwrap();
+                    let (tx, rx) = mpsc::channel::<Json>();
+                    thread::spawn(move || {
+                        let reader = BufReader::new(connection.try_clone().unwrap());
+                        for line in reader.lines() {
+                            let line = line.unwrap();
+                            if line == "" {
+                                continue;
+                            }
+                            let message = serde_json::from_str(&line).unwrap();
+                            let response = handle_request(message, &tx)
+                                    .unwrap_or_else(|err| response_from_err(err));
+                            tx.send(response).unwrap();
                         }
-                        let message = serde_json::from_str(&line).unwrap();
-                        let response = handle_request(message)
-                                .unwrap_or_else(|err| response_from_err(err));
-                        let response_payload = serde_json::to_string(&response).unwrap() + "\n";
-                        connection.write_all(response_payload.as_bytes()).unwrap();
+                    });
+                    for message in rx {
+                        let response_payload = serde_json::to_string(&message).unwrap() + "\n";
+                        sender.write_all(response_payload.as_bytes()).unwrap();
                     }
                 });
             }

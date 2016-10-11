@@ -2,6 +2,7 @@ use super::super::*;
 
 extern crate websocket;
 use self::websocket::{Server, Message, Receiver, Sender};
+use std::sync::mpsc;
 
 pub static INTERFACE: &'static Interface = &WebSocketInterface;
 
@@ -25,23 +26,29 @@ impl Interface for WebSocketInterface {
             for connection in server {
                 thread::spawn(move || {
                     let (mut sender, mut receiver) = connection.unwrap().read_request().unwrap().accept().send().unwrap().split();
-                    for message in receiver.incoming_messages() {
-                        let mut message: Message = message.unwrap();
-                        match message.opcode {
-                            Ping => {
-                                message.into_pong().unwrap();
-                                sender.send_message(&message).unwrap()
-                            },
-                            Pong => {},
-                            Close => break,
-                            Text | Binary => {
-                                let response = handle_message(message)
-                                        .unwrap_or_else(|err| response_from_err(err));
-                                let response_payload = serde_json::to_string(&response).unwrap();
-                                let response_message = Message::text(response_payload);
-                                sender.send_message(&response_message).unwrap()
+                    let (tx, rx) = mpsc::channel::<Json>();
+                    thread::spawn(move || {
+                        for message in receiver.incoming_messages() {
+                            let message: Message = message.unwrap();
+                            match message.opcode {
+                                Ping => {
+                                    //message.into_pong().unwrap();
+                                    //ping_sender.send_message(&message).unwrap()
+                                },
+                                Pong => {},
+                                Close => break,
+                                Text | Binary => {
+                                    let response = handle_message(message, &tx)
+                                            .unwrap_or_else(|err| response_from_err(err));
+                                    tx.send(response).unwrap()
+                                }
                             }
                         }
+                    });
+                    for message in rx {
+                        let response_payload = serde_json::to_string(&message).unwrap();
+                        let response_message = Message::text(response_payload);
+                        sender.send_message(&response_message).unwrap();
                     }
                 });
             }
@@ -49,8 +56,8 @@ impl Interface for WebSocketInterface {
     }
 }
 
-fn handle_message(message: Message) -> Result<Json, Box<Error>> {
+fn handle_message(message: Message, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
     let message = message.payload;
     let request = try!(serde_json::from_slice(&message));
-    handle_request(request)
+    handle_request(request, tx)
 }

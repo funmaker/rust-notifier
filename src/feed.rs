@@ -151,6 +151,8 @@ pub fn fetch_feeds() {
         feeds.insert(name.clone(), feed);
     }
     
+    run_update(&feeds);
+    
     *get_feeds() = feeds;
 }
 

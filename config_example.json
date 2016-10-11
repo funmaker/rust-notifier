@@ -21,10 +21,13 @@
         },
         "youtube": {
             "enabled": false,
-            "apiKey":"===YOUR API KEY==="
+            "apiKey": "===YOUR API KEY==="
         },
         "wonziu": {
-            "enabled":false,
+            "enabled": false
+        },
+        "vinesauce": {
+            "enabled": false
         }
     },
     "interfaces": {

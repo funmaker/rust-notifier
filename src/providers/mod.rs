@@ -4,6 +4,7 @@ mod rss;
 mod chan;
 mod youtube;
 mod wonziu;
+mod vinesauce;
 
 lazy_static! {
     static ref ENABLED_PROVIDERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -22,6 +23,7 @@ fn find_provider(name: &str) -> &'static Provider {
         "chan" => chan::PROVIDER,
         "youtube" => youtube::PROVIDER,
         "wonziu" => wonziu::PROVIDER,
+        "vinesauce" => vinesauce::PROVIDER,
         _ => panic!("Cannot find {} provider.", name),
     }
 }

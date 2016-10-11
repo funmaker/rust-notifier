@@ -1,5 +1,5 @@
 # rust-notifier
-Server in Rust for generating notifications from RSS, twitch activity, 4chan threads, youtube subscriptions, twitter and more.
+Server in Rust for generating notifications from RSS, 4chan threads, youtube subscriptions, twitter and more.
 
 ## Features
 - [X] Websocket support
@@ -8,6 +8,7 @@ Server in Rust for generating notifications from RSS, twitch activity, 4chan thr
 - [X] 4chan support
 - [X] YouTube Subscriptions support
 - [X] Jadisco.pl support
+- [X] Vinesauce support
 - [ ] Twitch support
 
 ## API Reference
@@ -53,6 +54,12 @@ String value of YouTube Channel's ID.
 | ------- | ------ | ------- |
 | boards  | Array of Strings | Boards to search |
 | filters | Array of Strings | Array of regex rules. OPs matching any of these will be returned. |
+
+##### Vinesauce
+
+| Field   | Type   | Comment |
+| ------- | ------ | ------- |
+| channels  | Array of Strings | Names of channels to subscribe, eg: ["vinesauce", "vargskelethor"] |
 
 ### Error
 | Field   | Type   | Comment |
@@ -125,4 +132,16 @@ String value of YouTube Channel's ID.
 | ------- | ------ | ------- |
 | feedName | String | Name of a removed feed |
 
+### Update Mode
+#### Request
 
+| Field   | Type   | Comment |
+| ------- | ------ | ------- |
+| command | String | Always "update" |
+
+#### Response (will be send at fixed intervals)
+
+| Field   | Type   | Comment |
+| ------- | ------ | ------- |
+| status  | Array of Entries | New statuses |
+| notifications | Array of Entries | New notifications |

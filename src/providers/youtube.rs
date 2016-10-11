@@ -49,6 +49,12 @@ struct Video {
     id: Option<String>,
 }
 
+#[derive(Serialize)]
+struct Extra {
+    #[serde(rename="displayName")]
+    display_name: String,
+}
+
 impl Video {
     fn to_entry(self) -> Option<Entry> {
         match (self.thumbnails.pointer("/default/url"), self.id) {
@@ -58,7 +64,9 @@ impl Video {
                         .set_timestamp(time::strptime(&self.published_at, "%Y-%m-%dT%H:%M:%S")
                                 .ok()
                                 .map(|tm| to_timestamp(tm)))
-                        .feed_name(&self.channel_title)
+                        .extra(serde_json::to_value(&Extra{
+                                display_name: self.channel_title.to_string(),
+                            }))
                         .image_url(tbnail))
             }
             _ => None

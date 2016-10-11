@@ -18,12 +18,14 @@ mod providers;
 mod handler;
 mod interfaces;
 mod config;
+mod update;
 pub use utils::*;
 pub use feed::*;
 pub use providers::*;
 pub use handler::*;
 pub use interfaces::*;
 pub use config::*;
+pub use update::*;
 
 lazy_static! {
     static ref FEEDS: Mutex<Feeds> = Mutex::new(Feeds::new());

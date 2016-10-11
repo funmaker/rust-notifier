@@ -92,6 +92,10 @@ window.addEventListener("load", function () {
     "command": "remove",
     "feedName": "funmaker-rss-mikufan"
 }`,
+        "update":
+`{
+    "command": "update"
+}`,
 	}
 	
 	for (var name in templates) {
