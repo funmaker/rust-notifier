@@ -22,6 +22,10 @@ pub fn run_update(feeds: &Feeds) {
             .collect(),
     };
     
+    if response.status.len() == 0 && response.notifications.len() == 0 {
+        return;
+    }
+    
     let mut response = serde_json::to_value(response);
     
     response.as_object_mut().unwrap().insert("command".to_string(), Json::String("update".to_string()));

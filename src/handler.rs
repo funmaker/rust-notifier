@@ -70,7 +70,6 @@ struct UpdateRequest;
 
 #[derive(Serialize)]
 pub struct UpdateResponse<'a> {
-    #[serde(rename="feedName")]
     pub status: Vec<&'a Entry>,
     pub notifications: Vec<&'a Entry>,
 }
