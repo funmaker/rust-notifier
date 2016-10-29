@@ -1,5 +1,6 @@
 # rust-notifier
 Server in Rust for generating notifications from RSS, 4chan threads, youtube subscriptions, twitter and more.
+Clients: [https://github.com/Luksor/mumo-notifier](Mumble Plugin)
 
 ## Features
 - [X] Websocket support

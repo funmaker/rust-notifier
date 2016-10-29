@@ -38,6 +38,7 @@ struct OPExtra {
     images: i32,
     page: i32,
     board: String,
+    id: i32,
 }
 
 impl Provider for ChanProvider {
@@ -68,6 +69,7 @@ impl Provider for ChanProvider {
                         images: op.images,
                         page: page.page,
                         board: board.clone(),
+                        id: op.no,
                     });
                     let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url.replace("-", " ")), &hash(&(op.no, board)))
                             .set_description(op.com)
