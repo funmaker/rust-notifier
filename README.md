@@ -29,6 +29,7 @@ All requests and responses are Json objects.
 | title   | String |  |
 | guid    | String | Globally Unique IDntifier |
 | feedName | String | Name of the parent Feed |
+| error | Bool |  |
 | description | String | Optional |
 | link | String | Optional |
 | color | String | Optional. eg. "#FF00FF" |
