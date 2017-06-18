@@ -6,7 +6,7 @@ authors = ["Fun Maker <funmaker95@gmail.com>"]
 [dependencies]
 serde = "*"
 serde_json = "*"
-serde_macros = "*"
+serde_derive = "*"
 websocket = "*"
 rss = "0.4"
 time = "0.1"

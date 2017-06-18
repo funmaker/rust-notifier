@@ -45,17 +45,17 @@ impl Provider for ChanProvider {
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
         let data: Data = try!(serde_json::from_value(data.clone()));
-        
+
         let wrapped_filters = data.filters.iter()
                 .map(|filter| RegexBuilder::new(filter)
                         .case_insensitive(true)
-                        .compile());
+                        .build());
         let mut filters = Vec::new();
-        
+
         for filter in wrapped_filters {
             filters.push(try!(filter));
         }
-        
+
         for board in &data.boards {
             let url = format!("http://a.4cdn.org/{}/catalog.json", board);
             let catalog: Catalog = try!(serde_json::from_slice(&try!(http_get(&url))));
@@ -70,7 +70,7 @@ impl Provider for ChanProvider {
                         page: page.page,
                         board: board.clone(),
                         id: op.no,
-                    });
+                    }).unwrap();
                     let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url.replace("-", " ")), &hash(&(op.no, board)))
                             .set_description(op.com)
                             .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
@@ -83,7 +83,7 @@ impl Provider for ChanProvider {
                 }
             }
         }
-        
+
         Ok(feed)
     }
 }

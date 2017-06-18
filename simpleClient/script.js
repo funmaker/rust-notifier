@@ -63,7 +63,7 @@ window.addEventListener("load", function () {
 		}
 		document.getElementById("log").appendFirst(pre)
 	}
-	
+
 	templates = {
         "fetch":
 `{
@@ -97,7 +97,7 @@ window.addEventListener("load", function () {
     "command": "update"
 }`,
 	}
-	
+
 	for (var name in templates) {
 		(function (name){
 			document.getElementById(name).onclick = function(){

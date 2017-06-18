@@ -1,7 +1,8 @@
 use super::super::*;
 
 extern crate websocket;
-use self::websocket::{Server, Message, Receiver, Sender};
+use self::websocket::sync::Server;
+use self::websocket::{OwnedMessage, Message};
 use std::sync::mpsc;
 
 pub static INTERFACE: &'static Interface = &WebSocketInterface;
@@ -17,19 +18,19 @@ impl Interface for WebSocketInterface {
     fn start(&self, config: &Json) -> Option<thread::JoinHandle<()>>{
         use std::thread;
         use self::websocket::message::Type::*;
-        
+
         let settings: Settings = serde_json::from_value(config.clone()).unwrap();
 
         let server = Server::bind(("0.0.0.0", settings.port)).unwrap();
-        
+
         Some(thread::spawn(move || {
-            for connection in server {
+            for connection in server.filter_map(Result::ok) {
                 thread::spawn(move || {
-                    let (mut sender, mut receiver) = connection.unwrap().read_request().unwrap().accept().send().unwrap().split();
+                    let (mut receiver, mut sender) = connection.accept().unwrap().split().unwrap();
                     let (tx, rx) = mpsc::channel::<Json>();
                     thread::spawn(move || {
                         for message in receiver.incoming_messages() {
-                            let message: Message = message.unwrap();
+                            let message: Message = Message::from(message.unwrap());
                             match message.opcode {
                                 Ping => {
                                     //message.into_pong().unwrap();

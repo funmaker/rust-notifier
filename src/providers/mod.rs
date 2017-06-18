@@ -46,15 +46,25 @@ pub fn start_providers(config: &Map<Json>) -> Map<Option<thread::JoinHandle<()>>
     map
 }
 
+fn parse_cause(e: Option<&Error>) -> Option<String> {
+    match e {
+        None => None,
+        Some(e) if e.cause().is_none() => Some(format!("Caused by: {}", e.description())),
+        Some(e) => Some(format!("Caused by: {}\n{}", e.description(), parse_cause(e.cause()).unwrap())),
+    }
+}
+
 pub fn fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Feed {
     maybe_fetch_feed(feed_name, feed_data)
             .unwrap_or_else(|err| Feed{
                 notifications: vec![],
                 status: vec![
                     Entry::new(&format!("Unable to fetch, {}", err), &hash(&(timestamp(), err.description())))
+                            .set_description(parse_cause(err.cause()))
                             .timestamp(timestamp())
                             .color("#FF0000")
                             .feed_name(feed_name)
+                            .error(true)
                 ]
             })
 }
@@ -65,9 +75,9 @@ pub fn maybe_fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Result<
             return HandleError::new("Provider is disabled".to_string());
         }
     }
-    
+
     let mut feed = find_provider(&feed_data.provider).load_feed(&feed_data.provider_data);
-    
+
     if let Ok(ref mut feed) = feed {
         for entry in feed.iter_mut() {
             if entry.color.is_none() {
@@ -78,6 +88,6 @@ pub fn maybe_fetch_feed(feed_name: &str, feed_data: &ConfigFeedEntry) -> Result<
             }
         }
     }
-    
+
     feed
 }

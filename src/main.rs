@@ -1,11 +1,11 @@
 #![feature(custom_derive)]
 #![feature(conservative_impl_trait)]
 #![feature(plugin)]
-#![plugin(serde_macros)]
 
 pub extern crate serde_json;
 pub extern crate time;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate serde_derive;
 
 pub use std::sync::{Arc, Mutex, MutexGuard};
 pub use std::error::Error;
@@ -37,12 +37,12 @@ pub fn get_feeds() -> MutexGuard<'static, Feeds> {
 
 fn main() {
     let config = load_config().unwrap();
-    
+
     let providers = start_providers(&config.providers);
     let interfaces = start_interfaces(&config.interfaces);
-    
+
     let fetch_thread = start_fetch_thread(Duration::from_secs(60 * 5));
-    
+
     fetch_thread.join().unwrap();
     for (_, thread) in providers {
         if let Some(thread) = thread {

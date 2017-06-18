@@ -10,7 +10,7 @@ lazy_static! {
 pub fn run_update(feeds: &Feeds) {
     let mut hashes = HASHES.lock().unwrap();
     let mut updaters = UPDATERS.lock().unwrap();
-    
+
     let response = UpdateResponse {
         status: feeds.values()
             .flat_map(|f| f.status.iter())
@@ -21,20 +21,20 @@ pub fn run_update(feeds: &Feeds) {
             .filter(|e| !hashes.contains(&e.guid))
             .collect(),
     };
-    
+
     if response.status.len() == 0 && response.notifications.len() == 0 {
         return;
     }
-    
-    let mut response = serde_json::to_value(response);
-    
+
+    let mut response = serde_json::to_value(response).unwrap();
+
     response.as_object_mut().unwrap().insert("command".to_string(), Json::String("update".to_string()));
-    
+
     hashes.clear();
     hashes.extend(feeds.values()
             .flat_map(|f| f.iter())
             .map(|e| e.guid.to_string()));
-    
+
     updaters.retain(|tx| tx.send(response.clone()).is_ok());
 }
 

@@ -1,8 +1,7 @@
 extern crate websocket;
 
 use super::super::*;
-use self::websocket::{Client, Message, Receiver, Sender};
-use self::websocket::client::request::Url;
+use self::websocket::{ClientBuilder, Message, OwnedMessage};
 
 pub static PROVIDER: &'static Provider = &WonziuProvider;
 
@@ -17,15 +16,14 @@ impl Provider for WonziuProvider {
         use self::websocket::message::Type::*;
         let config = config.clone();
         Some(thread::spawn(move || {
-            let url = Url::parse("wss://api.pancernik.info/notifier").unwrap();
-            let request = Client::connect(url).unwrap();
-            let response = request.send().unwrap();
-            response.validate().unwrap();
-            let client = response.begin();
-            let (mut sender, mut receiver) = client.split();
-            
+            let client = ClientBuilder::new("wss://api.pancernik.info/notifier")
+                .unwrap()
+                .connect_insecure()
+                .unwrap();
+            let (mut receiver, mut sender) = client.split().unwrap();
+
             for message in receiver.incoming_messages() {
-                let mut message: Message = message.unwrap();
+                let mut message: Message = Message::from(message.unwrap());
                 match message.opcode {
                     Text | Binary => {
                         if let Some(msg) = handle_message(serde_json::from_slice(&message.payload).unwrap()) {
@@ -42,10 +40,10 @@ impl Provider for WonziuProvider {
             }
         }))
     }
-    
+
     fn load_feed(&self, _data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
-        
+
         let stream;
         let topic;
         {
@@ -56,7 +54,7 @@ impl Provider for WonziuProvider {
             stream = status.stream.clone().unwrap();
             topic = status.topic.clone().unwrap();
         }
-        
+
         if stream.status {
             feed.status.push(Entry::new(&topic.text, &hash(&(&stream.online_at, "wonziu")))
                     .set_timestamp(time::strptime(&stream.online_at, "%Y-%m-%dT%H:%M:%S")
@@ -64,7 +62,7 @@ impl Provider for WonziuProvider {
                             .map(|tm| to_timestamp(tm)))
                     .link("http://jadisco.pl/"))
         }
-        
+
         Ok(feed)
     }
 }
@@ -100,7 +98,7 @@ fn handle_message(message: WonziuMessage) -> Option<Message<'static>> {
             None
         }
         "update" => {
-            let status = serde_json::to_value(&*STATUS.lock().unwrap());
+            let status = serde_json::to_value(&*STATUS.lock().unwrap()).unwrap();
             let status_new = message.data.unwrap();
             *STATUS.lock().unwrap() = serde_json::from_value(json_merge(status, status_new)).unwrap();
             None
