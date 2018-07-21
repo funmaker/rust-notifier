@@ -30,13 +30,13 @@ struct Extra {
 impl Provider for VinesauceProvider {
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
-        let data: Data = try!(serde_json::from_value(data.clone()));
+        let data: Data = serde_json::from_value(data.clone())?;
 
-        let team: Json = try!(serde_json::from_slice(&try!(http_get("http://vinesauce.com/twitch/team-data.json"))));
+        let team: Json = serde_json::from_slice(&http_get("http://vinesauce.com/twitch/team-data.json")?)?;
 
         for channel in data.channels {
             if let Some(stream) = team.pointer(&format!("/{}/stream/streams/0", channel)) {
-                let stream: Stream = try!(serde_json::from_value(stream.clone()));
+                let stream: Stream = serde_json::from_value(stream.clone())?;
                 feed.status.push(Entry::new(&stream.channel.status, &hash(&(&stream.created_at, "wonziu")))
                         .set_timestamp(time::strptime(&stream.created_at, "%Y-%m-%dT%H:%M:%SZ")
                                 .ok()

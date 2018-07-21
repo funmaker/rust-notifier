@@ -2,6 +2,7 @@ use super::*;
 
 mod websocket;
 mod tcp;
+mod rss;
 
 pub trait Interface : Sync {
     fn start(&self, config: &Json) -> Option<thread::JoinHandle<()>>;
@@ -11,6 +12,7 @@ fn find_interface(name: &str) -> &'static Interface {
     match name {
         "websocket" => websocket::INTERFACE,
         "tcp" => tcp::INTERFACE,
+        "rss" => rss::INTERFACE,
         _ => panic!("Cannot find {} interface.", name),
     }
 }

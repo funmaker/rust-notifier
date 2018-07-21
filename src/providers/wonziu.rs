@@ -1,7 +1,7 @@
 extern crate websocket;
 
 use super::super::*;
-use self::websocket::{ClientBuilder, Message, OwnedMessage};
+use self::websocket::{ClientBuilder, Message};
 
 pub static PROVIDER: &'static Provider = &WonziuProvider;
 

@@ -1,6 +1,9 @@
 use super::*;
 
 use std::collections::BTreeMap;
+use std::time::{Duration};
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 #[derive(Serialize)]
 pub struct Entry {
@@ -151,7 +154,28 @@ impl Feed {
 }
 
 pub type Map<T> = BTreeMap<String, T>;
-pub type Feeds = Map<Feed>;
+pub struct Feeds {
+    pub created: u64,
+    pub feeds: Map<Feed>,
+}
+impl Feeds {
+    pub fn new() -> Self {Feeds{
+        created: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        feeds: Map::new(),
+    }}
+}
+impl std::ops::Deref for Feeds {
+    type Target = Map<Feed>;
+
+    fn deref(&self) -> &Map<Feed> {
+        &self.feeds
+    }
+}
+impl std::ops::DerefMut for Feeds {
+    fn deref_mut(&mut self) -> &mut Map<Feed> {
+        &mut self.feeds
+    }
+}
 
 pub fn fetch_feeds() {
     let mut feeds = BTreeMap::new();
@@ -163,8 +187,12 @@ pub fn fetch_feeds() {
         feeds.insert(name.clone(), feed);
     }
 
-    run_update(&feeds);
+    let feeds = Feeds{
+        created: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        feeds,
+    };
 
+    run_update(&feeds);
     *get_feeds() = feeds;
 }
 

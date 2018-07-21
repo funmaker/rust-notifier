@@ -1,11 +1,14 @@
 #![feature(custom_derive)]
-#![feature(conservative_impl_trait)]
 #![feature(plugin)]
+#![feature(generators)]
 
 pub extern crate serde_json;
 pub extern crate time;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate serde_derive;
+pub extern crate futures_await as futures;
+
+pub use futures::prelude::*;
 
 pub use std::sync::{Arc, Mutex, MutexGuard};
 pub use std::error::Error;

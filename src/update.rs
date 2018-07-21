@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeSet};
 use std::sync::mpsc;
 
 lazy_static! {

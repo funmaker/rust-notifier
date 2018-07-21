@@ -31,6 +31,10 @@
         }
     },
     "interfaces": {
+        "rss": {
+            "enabled": true,
+            "port": 9041
+        },
         "websocket": {
             "enabled": true,
             "port": 9039

@@ -59,7 +59,7 @@ macro_rules! ytcall(
             $(
                 s += &format!("&{}={}", percent_encode($key.as_bytes(), QUERY_ENCODE_SET), percent_encode($value.to_string().as_bytes(), QUERY_ENCODE_SET));
             )*
-            let response = try!(http_get(&s));
+            let response = http_get(&s)?;
             match serde_json::from_slice::<YouTubeResponse>(&response) {
                 Ok(res) => res,
                 Err(err) => return Err(YTError::new("Error in youtube api call",
@@ -132,7 +132,7 @@ impl Provider for YTProvider {
     }
 
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
-        let channel: String = try!(serde_json::from_value(data.clone()));
+        let channel: String = serde_json::from_value(data.clone())?;
         let api_key = API_KEY.lock().unwrap().clone();
 
         let mut all_playlists = Vec::new();

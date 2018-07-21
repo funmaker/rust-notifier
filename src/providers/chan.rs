@@ -44,7 +44,7 @@ struct OPExtra {
 impl Provider for ChanProvider {
     fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
         let mut feed = Feed::new();
-        let data: Data = try!(serde_json::from_value(data.clone()));
+        let data: Data = serde_json::from_value(data.clone())?;
 
         let wrapped_filters = data.filters.iter()
                 .map(|filter| RegexBuilder::new(filter)
@@ -53,12 +53,12 @@ impl Provider for ChanProvider {
         let mut filters = Vec::new();
 
         for filter in wrapped_filters {
-            filters.push(try!(filter));
+            filters.push(filter?);
         }
 
         for board in &data.boards {
             let url = format!("http://a.4cdn.org/{}/catalog.json", board);
-            let catalog: Catalog = try!(serde_json::from_slice(&try!(http_get(&url))));
+            let catalog: Catalog = serde_json::from_slice(&http_get(&url)?)?;
             for page in catalog {
                 for op in page.threads {
                     if !filters.iter().any(|f| f.is_match(op.sub.as_ref().unwrap_or(&"".to_string())) || f.is_match(op.com.as_ref().unwrap_or(&"".to_string()))) {

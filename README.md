@@ -5,7 +5,8 @@ Clients: [https://github.com/Luksor/mumo-notifier](Mumble Plugin)
 ## Features
 - [X] Websocket support
 - [X] TCP support
-- [X] RSS support
+- [X] RSS Server support
+- [X] RSS Reader support
 - [X] 4chan support
 - [X] YouTube Subscriptions support
 - [X] Jadisco.pl support

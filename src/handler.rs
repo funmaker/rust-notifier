@@ -81,7 +81,7 @@ pub fn response_from_err(err: Box<Error>) -> Json {
 }
 
 pub fn handle_request(raw_request: Json, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
-    let request: Request = try!(serde_json::from_value(raw_request.clone()));
+    let request: Request = serde_json::from_value(raw_request.clone())?;
 
     let mut response = match &*request.command {
         "fetch" => fetch(raw_request),
@@ -100,7 +100,7 @@ pub fn handle_request(raw_request: Json, tx: &mpsc::Sender<Json>) -> Result<Json
 }
 
 fn fetch(request: Json) -> Result<Json, Box<Error>> {
-    let request: FetchRequest = try!(serde_json::from_value(request));
+    let request: FetchRequest = serde_json::from_value(request)?;
 
     let feeds = get_feeds();
     let wrapped_filters = request.feeds.iter()
@@ -108,7 +108,7 @@ fn fetch(request: Json) -> Result<Json, Box<Error>> {
     let mut filters = Vec::new();
 
     for filter in wrapped_filters {
-        filters.push(try!(filter));
+        filters.push(filter?);
     }
 
     let matched: Map<&Feed> = feeds.iter()
@@ -134,9 +134,9 @@ fn fetch(request: Json) -> Result<Json, Box<Error>> {
 }
 
 
-fn list(request: Json) -> Result<Json, Box<Error>> {
+fn list(_request: Json) -> Result<Json, Box<Error>> {
     //let _request: ListRequest = try!(serde_json::from_value(request));
-    let config = try!(load_config());
+    let config = load_config()?;
 
     Ok(serde_json::to_value(
         ListResponse{
@@ -146,8 +146,8 @@ fn list(request: Json) -> Result<Json, Box<Error>> {
 }
 
 fn add(request: Json) -> Result<Json, Box<Error>> {
-    let request: AddRequest = try!(serde_json::from_value(request));
-    let mut config = try!(load_config());
+    let request: AddRequest = serde_json::from_value(request)?;
+    let mut config = load_config()?;
 
     if let Some(_) = config.feeds.get(&request.feed_name) {
         HandleError::new(format!("Feed {} already exsists.", request.feed_name))
@@ -167,8 +167,8 @@ fn add(request: Json) -> Result<Json, Box<Error>> {
 }
 
 fn remove(request: Json) -> Result<Json, Box<Error>> {
-    let request: RemoveRequest = try!(serde_json::from_value(request));
-    let mut config = try!(load_config());
+    let request: RemoveRequest = serde_json::from_value(request)?;
+    let mut config = load_config()?;
 
     if let Some(_) = config.feeds.remove(&request.feed_name) {
         let name = request.feed_name;
@@ -183,7 +183,7 @@ fn remove(request: Json) -> Result<Json, Box<Error>> {
     }
 }
 
-fn update(request: Json, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
+fn update(_request: Json, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
     //let _request: UpdateRequest = try!(serde_json::from_value(request));
 
     add_updater(tx);

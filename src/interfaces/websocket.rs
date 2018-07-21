@@ -2,7 +2,7 @@ use super::super::*;
 
 extern crate websocket;
 use self::websocket::sync::Server;
-use self::websocket::{OwnedMessage, Message};
+use self::websocket::{Message};
 use std::sync::mpsc;
 
 pub static INTERFACE: &'static Interface = &WebSocketInterface;
@@ -59,6 +59,6 @@ impl Interface for WebSocketInterface {
 
 fn handle_message(message: Message, tx: &mpsc::Sender<Json>) -> Result<Json, Box<Error>> {
     let message = message.payload;
-    let request = try!(serde_json::from_slice(&message));
+    let request = serde_json::from_slice(&message)?;
     handle_request(request, tx)
 }
