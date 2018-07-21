@@ -7,6 +7,7 @@ use self::hyper::{Body, Request, Response, Server};
 use self::hyper::rt::Future;
 use self::hyper::service::service_fn_ok;
 use self::rss::{ChannelBuilder, ItemBuilder, Item, CategoryBuilder, GuidBuilder};
+use self::rss::extension::{Extension, ExtensionBuilder};
 use self::url::Url;
 use std::collections::HashMap;
 
@@ -49,6 +50,35 @@ fn handle_request(req: Request<Body>) -> Response<Body> {
                     .link(entry.link.clone())
                     .description(entry.description.clone())
                     .pub_date(entry.timestamp.map(|ts| format!("{}", from_timestamp(ts).rfc822())))
+                    .extensions(
+                        hashmap!{
+                        "x-notifier".to_string() => hashmap!{
+                                "x-notifier".to_string() => vec![
+                                    ExtensionBuilder::default()
+                                        .name("x-notifier-color")
+                                        .value(entry.color.clone())
+                                        .build()
+                                        .unwrap(),
+                                    ExtensionBuilder::default()
+                                        .name("x-notifier-extra")
+                                        .children(entry.extra.clone().and_then(|extra|
+                                            extra.as_object().map(|extra|
+                                                extra.iter().map(|(name, entry)|
+                                                    match entry {
+                                                        Json::String(s) => (name, s.to_string()),
+                                                        any => (name, serde_json::to_string(any).unwrap()),
+                                                    })
+                                                .map(|(name, value)| (name.to_string(), vec![
+                                                    ExtensionBuilder::default()
+                                                        .name(name.to_string())
+                                                        .value(value)
+                                                        .build()
+                                                        .unwrap()]))
+                                                .collect::<HashMap<String, Vec<Extension>>>()))
+                                            .unwrap_or(HashMap::new()))
+                                        .build()
+                                        .unwrap(),
+                                    ]}})
                     .build()
                     .unwrap())
             .collect::<Vec<Item>>())

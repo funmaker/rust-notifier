@@ -6,6 +6,7 @@ pub extern crate serde_json;
 pub extern crate time;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate maplit;
 pub extern crate futures_await as futures;
 
 pub use futures::prelude::*;
