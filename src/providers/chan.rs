@@ -74,7 +74,7 @@ impl Provider for ChanProvider {
                     let mut entry = Entry::new(&op.sub.unwrap_or(op.semantic_url.replace("-", " ")), &hash(&(op.no, board)))
                             .set_description(op.com)
                             .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
-                            .timestamp(op.time as u64)
+                            .timestamp(op.time as u64 * 1000)
                             .extra(extra);
                     if let Some(tim) = op.tim {
                         entry = entry.image_url(&format!("https://i.4cdn.org/{}/{}s.jpg", board, tim));

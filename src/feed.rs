@@ -2,8 +2,6 @@ use super::*;
 
 use std::collections::BTreeMap;
 use std::time::{Duration};
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
 #[derive(Serialize)]
 pub struct Entry {
@@ -160,7 +158,7 @@ pub struct Feeds {
 }
 impl Feeds {
     pub fn new() -> Self {Feeds{
-        created: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        created: timestamp(),
         feeds: Map::new(),
     }}
 }
@@ -188,7 +186,7 @@ pub fn fetch_feeds() {
     }
 
     let feeds = Feeds{
-        created: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        created: timestamp(),
         feeds,
     };
 
