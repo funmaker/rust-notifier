@@ -75,7 +75,7 @@ impl Interface for RSSInterface {
 
 
         let settings: Settings = serde_json::from_value(config.clone()).unwrap();
-        let addr = ([127, 0, 0, 1], settings.port).into();
+        let addr = ([0, 0, 0, 0], settings.port).into();
 
         let server = Server::bind(&addr)
             .serve(|| service_fn_ok(handle_request))
