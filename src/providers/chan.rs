@@ -57,7 +57,7 @@ impl Provider for ChanProvider {
         }
 
         for board in &data.boards {
-            let url = format!("http://a.4cdn.org/{}/catalog.json", board);
+            let url = format!("https://a.4cdn.org/{}/catalog.json", board);
             let catalog: Catalog = serde_json::from_slice(&http_get(&url)?)?;
             for page in catalog {
                 for op in page.threads {
