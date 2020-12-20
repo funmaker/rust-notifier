@@ -1,61 +1,69 @@
-#![feature(custom_derive)]
-#![feature(plugin)]
-#![feature(generators)]
+#![feature(drain_filter)]
+#![feature(result_flattening)]
+#![feature(trace_macros)]
+#![feature(try_blocks)]
 
-pub extern crate serde_json;
-pub extern crate time;
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate maplit;
-pub extern crate futures_await as futures;
+use std::env;
+use std::time::Duration;
+use err_derive::Error;
+use getopts::Options;
+use futures::future;
 
-pub use futures::prelude::*;
-
-pub use std::sync::{Arc, Mutex, MutexGuard};
-pub use std::error::Error;
-pub use std::time::{Duration, Instant};
-pub use std::thread;
-pub use serde_json::Value as Json;
 mod utils;
-mod feed;
-mod providers;
-mod handler;
-mod interfaces;
+mod feeds;
 mod config;
-mod update;
-pub use utils::*;
-pub use feed::*;
-pub use providers::*;
-pub use handler::*;
-pub use interfaces::*;
-pub use config::*;
-pub use update::*;
+use config::Config;
+mod providers;
+use providers::Providers;
+mod interfaces;
+use interfaces::Interfaces;
+mod state;
+use state::State;
 
-lazy_static! {
-    static ref FEEDS: Mutex<Feeds> = Mutex::new(Feeds::new());
+
+#[tokio::main]
+pub async fn main() -> Result<(), Error> {
+	let args: Vec<String> = env::args().collect();
+	let program = args[0].clone();
+	let mut opts = Options::new();
+	
+	opts.optopt("c", "config", "Select fallback device to use", "config.json");
+	opts.optflag("h", "help", "Print this help menu");
+	
+	let matches = opts.parse(&args[1..])?;
+	
+	if matches.opt_present("h") {
+		print_usage(&program, opts);
+		return Ok(());
+	}
+	
+	let config = matches.opt_get("c")?
+	                    .unwrap_or("config.json".to_string());
+	
+	println!("Loading config...");
+	let config = Config::load(config).await?;
+	println!("Config Loaded");
+	
+	let mut providers = Providers::new(config.providers);
+	let interfaces = Interfaces::new(config.interfaces);
+	let state = State::new(config.feeds);
+	let fetch_interval = Duration::from_secs(config.fetch_interval_secs);
+	
+	future::try_join(providers.fetch_loop(state.clone(), fetch_interval),
+	                 interfaces.serve(state.clone())).await?;
+	
+	Ok(())
 }
 
-pub fn get_feeds() -> MutexGuard<'static, Feeds> {
-    FEEDS.lock().unwrap()
+fn print_usage(program: &str, opts: Options) {
+	let brief = format!("Usage: {} [options]", program);
+	print!("{}", opts.usage(&brief));
 }
 
-fn main() {
-    let config = load_config().unwrap();
-
-    let providers = start_providers(&config.providers);
-    let interfaces = start_interfaces(&config.interfaces);
-
-    let fetch_thread = start_fetch_thread(Duration::from_secs(60 * 5));
-
-    fetch_thread.join().unwrap();
-    for (_, thread) in providers {
-        if let Some(thread) = thread {
-            thread.join().unwrap();
-        }
-    }
-    for (_, thread) in interfaces {
-        if let Some(thread) = thread {
-            thread.join().unwrap();
-        }
-    }
+#[derive(Debug, Error)]
+pub enum Error {
+	#[error(display = "{}", _0)] GetoptsError(#[error(source)] getopts::Fail),
+	#[error(display = "{}", _0)] Infallible(#[error(source)] std::convert::Infallible),
+	#[error(display = "{}", _0)] ConfigLoadError(#[error(source)] config::LoadError),
+	#[error(display = "{}", _0)] JoinError(#[error(source)] tokio::task::JoinError),
 }

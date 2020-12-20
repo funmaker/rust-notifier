@@ -1,208 +1,353 @@
-extern crate rss;
-extern crate url;
+use std::error::Error;
+use std::fmt::Display;
+use std::sync::Arc;
+use err_derive::Error;
+use async_trait::async_trait;
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use futures::{StreamExt, TryFutureExt};
+use itertools::Itertools;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use chrono::DateTime;
+use serde_json::json;
 
-use std::fmt::{Display, Formatter};
-use std::ops::Deref;
-use super::super::*;
-pub static PROVIDER: &'static Provider = &YTProvider;
-use self::url::percent_encoding::percent_encode;
-use self::url::percent_encoding::QUERY_ENCODE_SET;
+use crate::utils::{Json, Map, IteratorEx};
+use crate::providers::Provider;
+use crate::config::ConfigFeedEntry;
+use crate::feeds::{Feed, Entry};
 
-struct YTProvider;
+const MAX_CON_REQUESTS: usize = 10;
 
-lazy_static! {
-    static ref API_KEY: Mutex<String> = Mutex::new(String::new());
+pub struct YouTubeProvider {
+	api_key: String
 }
 
-#[derive(Debug)]
-struct YTError {
-    desc: String,
-    cause: Box<Option<YTError>>,
+#[derive(Deserialize)]
+struct YouTubeConfig {
+	#[serde(rename="apiKey")]
+	api_key: String
 }
 
-impl YTError {
-    fn new(desc: &str, cause: Option<YTError>) -> Self {
-        YTError{
-            desc: desc.to_string(),
-            cause: Box::new(cause)
-        }
-    }
-
-    fn boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
+impl YouTubeProvider {
+	pub fn new(config: Json) -> Result<Self, Box<dyn Error>> {
+		let config: YouTubeConfig = serde_json::from_value(config)?;
+		
+		Ok(YouTubeProvider {
+			api_key: config.api_key,
+		})
+	}
 }
 
-impl Display for YTError {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self.desc)
-    }
+fn encode<'a>(text: &'a str) -> impl Display + 'a {
+	utf8_percent_encode(text, NON_ALPHANUMERIC)
 }
 
-impl Error for YTError {
-    fn description(&self) -> &str {
-        &self.desc
-    }
+async fn fetch<Item: DeserializeOwned + std::fmt::Debug>(url: String) -> Result<Vec<Result<Item, FetchError>>, FetchError> {
+	let result = reqwest::get(&url)
+	                     .await?
+	                     .bytes()
+	                     .await?;
+	
+	let result = serde_json::from_slice::<YouTubeResponse>(&*result)?;
+	
+	for r in result.items.iter() {
+		let w = serde_json::from_value::<Item>(r.clone());
+		if w.is_err() {
+			eprintln!("Couldn't parse {} {:?}", serde_json::to_string_pretty(r).unwrap(), w);
+		}
+	}
+	
+	Ok(result.items.into_iter()
+	               .map(serde_json::from_value)
+	               .map(|r| r.map_err(Into::into))
+	               .collect())
+}
 
-    fn cause(&self) -> Option<&Error> {
-        match self.cause.deref() {
-            &None => None,
-            &Some(ref err) => Some(err as &Error)
-        }
-    }
+async fn fetch_all<Item: DeserializeOwned>(url: String) -> Result<Vec<Result<Item, FetchError>>, FetchError> {
+	let mut ret = vec![];
+	let mut next_page_token: Option<String> = None;
+	
+	loop {
+		let url = next_page_token.map(|token| format!("{}&pageToken={}", &url, encode(&token)))
+		                         .unwrap_or(url.to_string());
+		
+		let result = reqwest::get(&url)
+		                           .await?
+		                           .bytes()
+		                           .await?;
+		
+		let result = serde_json::from_slice::<YouTubeResponse>(&*result)?;
+		
+		ret.extend(result.items.into_iter()
+		                       .map(serde_json::from_value)
+		                       .map(|r| r.map_err(Into::into)));
+		next_page_token = result.next_page_token;
+		
+		if next_page_token.is_none() { break }
+	}
+	
+	Ok(ret)
 }
 
 macro_rules! ytcall(
-    { $api_key:expr, $command:expr, $($key:expr => $value:expr),+ } => {
-        {
-            let mut s = format!("https://www.googleapis.com/youtube/v3/{}?key={}", $command, $api_key);
-            $(
-                s += &format!("&{}={}", percent_encode($key.as_bytes(), QUERY_ENCODE_SET), percent_encode($value.to_string().as_bytes(), QUERY_ENCODE_SET));
-            )*
-            let response = http_get(&s)?;
-            match serde_json::from_slice::<YouTubeResponse>(&response) {
-                Ok(res) => res,
-                Err(err) => return Err(YTError::new("Error in youtube api call",
-                    Some(YTError::new(&format!("{}", err),
-                        Some(YTError::new(&format!("{}\n=>\n{}", s, String::from_utf8(response).unwrap_or_default()), None))))).boxed()),
-            }
-        }
-     };
+	{ $api_key:expr, $command:expr, $item_type:ty, $($key:expr => $value:expr),+ } => { ytcall!($api_key, $command, $item_type, $($key => $value),+; fetch_all ) };
+	{ $api_key:expr, $command:expr, $item_type:ty, $($key:expr => $value:expr),+; Single } => { ytcall!($api_key, $command, $item_type, $($key => $value),+; fetch ) };
+	{ $api_key:expr, $command:expr, $item_type:ty, $($key:expr => $value:expr),+; $fetch_fn:ident } => {
+		{
+			let mut s = format!("https://www.googleapis.com/youtube/v3/{}?key={}", $command, $api_key);
+			$(
+				s += &format!("&{}={}", encode($key), encode(&$value.to_string()));
+			)*
+			
+			$fetch_fn::<$item_type>(s)
+		}
+	};
 );
 
-#[derive(Deserialize)]
-struct Settings {
-    #[serde(rename="apiKey")]
-    api_key: String,
+macro_rules! try_feed (
+	{ $result:expr, $feed:expr, $reason:literal, $( $arg:expr ),*; $then:expr } => {
+		match $result {
+			Err(err) => {
+				$feed.add_err(&format!( $reason, $( $arg ),* ), &err.to_string());
+				$then
+			},
+			Ok(val) => val,
+		}
+	}
+);
+
+#[async_trait(?Send)]
+impl Provider for YouTubeProvider {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
+		let mut skipped_errors = vec![];
+		
+		// Feed -> Channel
+		let feed_channel = config.iter()
+		                         .map(|(name, entry)|
+			                         (name.to_string(), serde_json::from_value::<String>(entry.provider_data.clone())
+			                                                                   .map_err(Into::into))
+		                         )
+		                         .collect::<Map<Result<String, FetchError>>>();
+		
+		// Channel -> Subscriptions
+		let channel_subs = feed_channel.values()
+		                               .flatten()
+		                               .unique()
+		                               .cloned()
+		                               .into_stream()
+		                               .map(|channel| async {
+			                               let subs = ytcall![self.api_key, "subscriptions", YouTubeSubscription,
+			                                                  "part" => "snippet",
+			                                                  "channelId" => channel,
+			                                                  "maxResults" => 50 ].await;
+			                               (channel, subs)
+		                               })
+		                               .buffer_unordered(MAX_CON_REQUESTS)
+		                               .collect::<Map<_>>()
+		                               .await;
+		
+		// Channel -> Uploads
+		let channel_uploads = channel_subs.values()
+		                              .flatten() // D
+		                              .flatten() // F
+		                              .flatten() // C
+		                              .map(|sub| sub.snippet.resource_id.channel_id.to_string())
+		                              .into_stream()
+		                              .chunks(50)
+		                              .map(|ids| async {
+			                              let channels = ytcall![self.api_key, "channels", YouTubeChannel,
+			                                                         "part" => "contentDetails",
+			                                                         "id" => ids.join(","),
+			                                                         "maxResults" => 50 ].await;
+			                              (ids, channels)
+		                              })
+		                              .buffer_unordered(MAX_CON_REQUESTS)
+		                              .flat_map(|(ids, result)| { match result {
+			                              Err(err) => {
+				                              let err = Arc::new(err);
+				                              
+				                              ids.into_iter()
+				                                 .map(move |id| (id, Err(err.clone())))
+				                                 .into_box()
+				                                 .into_stream()
+			                              },
+			                              Ok(mut subs) => {
+				                              skipped_errors.extend(subs.drain_filter(|c| c.is_err()).filter_map(Result::err));
+		                                
+				                              subs.into_iter()
+				                                  .flatten()
+				                                  .map(|sub| (sub.id, Ok(sub.content_details.related_playlists.uploads.clone())))
+				                                  .into_box()
+				                                  .into_stream()
+			                              }
+		                              }})
+		                              .collect::<Map<_>>()
+		                              .await;
+		
+		// Uploads -> Videos
+		let uploads_videos = channel_uploads.values()
+		                                    .flatten()
+		                                    .cloned()
+		                                    .into_stream()
+		                                    .map(|uploads| async {
+			                                    let videos = ytcall![self.api_key, "playlistItems", YouTubePlaylistItem,
+			                                                         "part" => "snippet",
+			                                                         "playlistId" => uploads,
+			                                                         "maxResults" => 5; Single ].await;
+			                                    
+			                                    (uploads, videos)
+		                                    })
+		                                    .buffer_unordered(MAX_CON_REQUESTS)
+		                                    .collect::<Map<_>>()
+		                                    .await;
+		
+		config.into_iter()
+		      .map(|(name, _)| {
+			      let mut feed = Feed::new();
+			      
+			      for err in skipped_errors.iter() {
+				      feed.add_err("Unexpected error while fetching.", &err.to_string());
+			      }
+			      
+			      let channel = feed_channel.get(&name).flatten();
+			      let channel = try_feed!(channel, feed, "Unable to find channel for {} feed.", name; return (name, feed));
+			      
+			      let subs = channel_subs.get(channel).flatten();
+			      let subs = try_feed!(subs, feed, "Unable to get subscriptions for {} channel.", channel; return (name, feed));
+			      
+			      let mut entries = subs.iter()
+			                            .flat_map(|sub| {
+				                            let sub = try_feed!(sub, feed, "Unable to fetch subscription for {} channel.", channel; return None);
+				                            let sub = &sub.snippet.resource_id.channel_id;
+				
+				                            let uploads = channel_uploads.get(sub).flatten();
+				                            let uploads = try_feed!(uploads, feed, "Unable to get uploads playlist for {} channel.", sub; return None);
+				
+				                            let videos = uploads_videos.get(uploads).flatten();
+				                            let videos = try_feed!(videos, feed, "Unable to get videos for {} channel, {} playlist.", sub, uploads; return None);
+				
+				                            Some(videos)
+			                            })
+			                            .flat_map(|videos| videos.iter())
+			                            .map(|video| {
+				                            let video = &video.as_ref().unwrap().snippet;
+				                            Entry::new(&video.title, &video.resource_id.video_id)
+				                                  .description(&video.description)
+				                                  .extra(json!({ "displayName": &video.channel_title }))
+				                                  .link(&format!("https://youtu.be/{}", video.resource_id.video_id))
+				                                  .set_image_url(video.thumbnails.get("default").map(|tn| tn.url.clone()))
+				                                  .set_timestamp(DateTime::parse_from_rfc3339(&video.published_at).ok())
+			                            })
+			                            .collect::<Vec<_>>();
+			      
+			      feed.notifications.append(&mut entries);
+			      
+			      (name, feed)
+		      })
+		      .collect()
+	}
 }
 
-#[derive(Deserialize)]
-struct YouTubeResponse {
-    #[serde(rename="nextPageToken")]
-    next_page_token: Option<String>,
-    items: Vec<Json>,
+
+#[derive(Debug, Error)]
+pub enum FetchError {
+	#[error(display = "API did not returned requested resource")] NotFound,
+	#[error(display = "{}", _0)] HTTPError(#[error(source)] reqwest::Error),
+	#[error(display = "{}", _0)] JSONError(#[error(source)] serde_json::Error),
+}
+
+
+trait Flatten {
+	type Output;
+	fn flatten(self) -> Self::Output;
+}
+
+impl<'a, T> Flatten for Option<&'a Result<T, FetchError>> {
+	type Output = Result<&'a T, &'a FetchError>;
+	
+	fn flatten(self) -> Self::Output {
+		self.unwrap_or(&Err(FetchError::NotFound)).as_ref()
+	}
+}
+
+impl<'a, T> Flatten for Option<&'a Result<T, Arc<FetchError>>> {
+	type Output = Result<&'a T, Arc<FetchError>>;
+	
+	fn flatten(self) -> Self::Output {
+		self.map(|r| r.as_ref().map_err(|err| err.clone()))
+		    .unwrap_or(Err(Arc::new(FetchError::NotFound)))
+	}
 }
 
 #[derive(Deserialize, Debug)]
-struct Video {
-    #[serde(rename="publishedAt")]
-    published_at: String,
-    title: String,
-    #[serde(rename="channelTitle")]
-    channel_title: String,
-    thumbnails: Json,
-    id: Option<String>,
+struct YouTubeResponse {
+	#[serde(rename="nextPageToken")]
+	next_page_token: Option<String>,
+	items: Vec<Json>,
 }
 
-#[derive(Serialize)]
-struct Extra {
-    #[serde(rename="displayName")]
-    display_name: String,
+#[derive(Deserialize, Debug)]
+struct YouTubeSubscription {
+	snippet: YouTubeSubscriptionSnippet,
 }
 
-impl Video {
-    fn to_entry(self) -> Option<Entry> {
-        match (self.thumbnails.pointer("/default/url"), self.id) {
-            (Some(&Json::String(ref tbnail)), Some(ref id)) => {
-                Some(Entry::new(&self.title, id)
-                        .link(&format!("https://youtu.be/{}", id))
-                        .set_timestamp(time::strptime(&self.published_at, "%Y-%m-%dT%H:%M:%S")
-                                .ok()
-                                .map(|tm| to_timestamp(tm)))
-                        .extra(serde_json::to_value(&Extra{
-                                display_name: self.channel_title.to_string(),
-                            }).unwrap())
-                        .image_url(tbnail))
-            }
-            _ => None
-        }
-    }
-
-    fn id(mut self, id: &str) -> Self {
-        self.id = Some(id.to_string());
-        self
-    }
+#[derive(Deserialize, Debug)]
+struct YouTubeSubscriptionSnippet {
+	#[serde(rename="resourceId")]
+	resource_id: YouTubeResourceChannelId,
 }
 
-impl Provider for YTProvider {
-    fn start(&self, config: &Json) -> Option<thread::JoinHandle<()>>{
-        let settings: Settings = serde_json::from_value(config.clone()).unwrap();
-        *API_KEY.lock().unwrap() = settings.api_key;
-        None
-    }
+#[derive(Deserialize, Debug)]
+struct YouTubeResourceChannelId {
+	#[serde(rename="channelId")]
+	channel_id: String,
+}
 
-    fn load_feed(&self, data: &Json) -> Result<Feed, Box<Error>> {
-        let channel: String = serde_json::from_value(data.clone())?;
-        let api_key = API_KEY.lock().unwrap().clone();
+#[derive(Deserialize, Debug)]
+struct YouTubeChannel {
+	#[serde(rename="contentDetails")]
+	content_details: YouTubeChannelDetails,
+	id: String,
+}
 
-        let mut all_playlists = Vec::new();
+#[derive(Deserialize, Debug)]
+struct YouTubeChannelDetails {
+	#[serde(rename="relatedPlaylists")]
+	related_playlists: YouTubeRelatedPlaylists,
+}
 
-        let mut subscriptions = ytcall![api_key, "subscriptions",
-                "part" => "snippet",
-                "channelId" => channel,
-                "maxResults" => 50 ];
-        loop {
-            let channels = subscriptions.items.iter()
-                    .filter_map(|subscription| subscription.pointer("/snippet/resourceId/channelId").and_then(|c| c.as_str()))
-                    .collect::<Vec<&str>>()
-                    .join(",");
+#[derive(Deserialize, Debug)]
+struct YouTubeRelatedPlaylists {
+	uploads: String,
+}
 
-            let playlists = ytcall![api_key, "channels",
-                    "part" => "contentDetails",
-                    "id" => channels,
-                    "maxResults" => 50 ];
+#[derive(Deserialize, Debug)]
+struct YouTubePlaylistItem {
+	snippet: YouTubePlaylistItemSnippet,
+}
 
-            all_playlists.extend(playlists.items.iter()
-                    .filter_map(|playlist| playlist.pointer("/contentDetails/relatedPlaylists/uploads")
-                            .and_then(|u| u.as_str()
-                                    .map(|s| s.to_string()))));
+#[derive(Deserialize, Debug)]
+struct YouTubePlaylistItemSnippet {
+	#[serde(rename="publishedAt")]
+	published_at: String,
+	#[serde(rename="channelTitle")]
+	channel_title: String,
+	title: String,
+	description: String,
+	#[serde(rename="resourceId")]
+	resource_id: YouTubeResourceVideoId,
+	thumbnails: Map<YouTubeThumbnail>,
+}
 
-            if let Some(next_page) = subscriptions.next_page_token {
-                subscriptions = ytcall![api_key, "subscriptions",
-                        "part" => "snippet",
-                        "channelId" => channel,
-                        "maxResults" => 50,
-                        "pageToken" => next_page ];
-            } else {
-                break;
-            }
-        }
+#[derive(Deserialize, Debug)]
+struct YouTubeResourceVideoId {
+	#[serde(rename="videoId")]
+	video_id: String,
+}
 
-        let mut all_plitems = Vec::new();
-
-        for playlist in all_playlists {
-            let plitems = ytcall![api_key, "playlistItems",
-                    "part" => "contentDetails",
-                    "playlistId" => playlist,
-                    "maxResults" => 5 ];
-
-            all_plitems.extend(plitems.items.iter()
-                    .filter_map(|plitem| plitem.pointer("/contentDetails/videoId")
-                            .and_then(|u| u.as_str())
-                            .map(|s| s.to_string())));
-        }
-
-        let mut feed = Feed::new();
-
-        for plitems in all_plitems.chunks(50) {
-            let ids = plitems.join(",");
-
-            let videos = ytcall![api_key, "videos",
-                    "part" => "snippet",
-                    "id" => ids,
-                    "maxResults" => 50 ];
-
-            feed.notifications.extend(videos.items.iter()
-                    .filter_map(|video| video.pointer("/id")
-                            .and_then(|id| id.as_str())
-                            .and_then(|id| video.pointer("/snippet")
-                                    .map(|snippet| (id, snippet)))
-                            .and_then(|(id, snippet)| serde_json::from_value::<Video>(snippet.clone())
-                                    .ok()
-                                    .map(|video| video.id(id))))
-                    .filter_map(|video| video.to_entry()));
-        }
-
-        Ok(feed)
-    }
+#[derive(Deserialize, Debug)]
+struct YouTubeThumbnail {
+	width: usize,
+	height: usize,
+	url: String,
 }
