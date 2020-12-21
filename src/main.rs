@@ -2,6 +2,7 @@
 #![feature(result_flattening)]
 #![feature(trace_macros)]
 #![feature(try_blocks)]
+#![feature(never_type)]
 
 use std::env;
 use std::time::Duration;

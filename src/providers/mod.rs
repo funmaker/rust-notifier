@@ -8,12 +8,14 @@ use tokio::task::JoinError;
 use tokio::time;
 
 mod null;
-use null::NullProvider;
 mod rss;
-use self::rss::RssProvider;
 mod youtube;
-use youtube::YouTubeProvider;
+mod chan;
 
+use null::NullProvider;
+use youtube::YouTubeProvider;
+use chan::ChanProvider;
+use self::rss::RssProvider;
 use crate::config::ConfigFeedEntry;
 use crate::feeds::{Feed, Feeds};
 use crate::utils::{Map, Json};
@@ -51,6 +53,7 @@ fn init_provider(name: String, config: Json) -> Box<dyn Provider> {
 	let provider = match &*name {
 		"rss" => boxed(RssProvider::new(config)),
 		"youtube" => boxed(YouTubeProvider::new(config)),
+		"chan" => boxed(ChanProvider::new(config)),
 		_ => Err(ProviderError::NotFound),
 	};
 	

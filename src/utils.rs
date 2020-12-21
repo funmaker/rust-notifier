@@ -2,19 +2,19 @@ use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use std::pin::Pin;
-use serde::{Serialize, Deserialize};
 use futures::stream;
 use futures::stream::Iter;
+use itertools::Itertools;
+use chrono::{DateTime, Utc, NaiveDateTime};
 
 use crate::feeds::Feed;
 
 pub use serde_json::Value as Json;
-use itertools::Itertools;
-
 pub type Map<T> = BTreeMap<String, T>;
 
-#[derive(Serialize, Deserialize, Hash, Debug, Copy, Clone)]
-pub struct Timestamp(u128);
+pub fn from_unix_timestamp(timestamp: i64) -> DateTime<Utc> {
+	DateTime::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc)
+}
 
 pub fn hash<H: Hash>(data: &H) -> String {
 	let mut state = DefaultHasher::new();

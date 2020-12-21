@@ -8,7 +8,7 @@
             "provider": "chan",
             "providerData": {
                 "boards": ["g"],
-                "filters": ["dpt"]
+                "filters": "dpt"
             }
         }
     },

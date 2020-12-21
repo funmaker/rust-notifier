@@ -1,13 +1,13 @@
-use std::collections::HashSet;
 use std::error::Error;
 use async_trait::async_trait;
-use futures::{stream, StreamExt, TryFutureExt};
+use futures::{StreamExt, TryFutureExt};
 use rss::Channel;
 use bytes::Bytes;
 use chrono::DateTime;
+use itertools::Itertools;
 
 use super::Provider;
-use crate::utils::{Json, Map, hash};
+use crate::utils::{Json, Map, hash, IteratorEx};
 use crate::config::ConfigFeedEntry;
 use crate::feeds::{Feed, Entry};
 
@@ -24,41 +24,41 @@ impl RssProvider {
 #[async_trait(?Send)]
 impl Provider for RssProvider {
 	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
-		let urls = config.values()
-		                 .filter_map(move |entry| entry.provider_data.as_str())
-		                 .map(|s| s.to_string())
-		                 .collect::<HashSet<_>>();
-		
-		let data = stream::iter(urls)
-		                  .map(|url| async move {
-			                  let content = reqwest::get(&url)
-				                                    .and_then(|res| res.bytes())
-				                                    .await;
-			                  
-			                  (url, content)
-		                  })
-		                  .buffer_unordered(MAX_CON_REQUESTS)
-		                  .map(|(url, content)| {
-			                  let feed = resp_to_feed(content, &url);
-			                  
-			                  (url, feed)
-		                  })
-		                  .collect::<Map<Feed>>()
-		                  .await;
+		// Url -> Feed
+		let data = config.values()
+		                 .map(|entry| entry.provider_data.as_str())
+		                 .flatten()
+		                 .unique()
+		                 .into_stream()
+		                 .map(|url| async move {
+			                 let content = reqwest::get(url)
+				                 .and_then(|res| res.bytes())
+				                 .await;
+			                 
+			                 (url, content)
+		                 })
+		                 .buffer_unordered(MAX_CON_REQUESTS)
+		                 .map(|(url, content)| {
+			                 let feed = parse_response(content, url);
+			
+			                 (url.to_string(), feed)
+		                 })
+		                 .collect::<Map<_>>()
+		                 .await;
 		
 		config.into_iter()
-		      .map(|(name, entry)|
-			      (name, entry.provider_data
-			                  .as_str()
-			                  .map(|url| data.get(url))
-			                  .flatten()
-			                  .cloned()
-			                  .unwrap_or_else(|| Feed::from_err("Unable to parse provider_data", &format!("Expected String, got {}", entry.provider_data.to_string())))))
+		      .map(|(name, entry)| {
+			      let feed = serde_json::from_value(entry.provider_data.clone())
+			                            .map(|url: String| data.get(&url).cloned().unwrap())
+			                            .unwrap_or_else(|err| Feed::from_err("Failed to parse provider_data", &err.to_string()));
+			      
+			      (name, feed)
+		      })
 		      .collect()
 	}
 }
 
-fn resp_to_feed(response: reqwest::Result<Bytes>, url: &str) -> Feed {
+fn parse_response(response: reqwest::Result<Bytes>, url: &str) -> Feed {
 	let parsed = response.map(|content| Channel::read_from(&*content));
 	
 	match parsed {
