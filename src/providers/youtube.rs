@@ -5,7 +5,7 @@ use err_derive::Error;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use chrono::DateTime;
@@ -238,6 +238,7 @@ impl Provider for YouTubeProvider {
 				                                  .set_image_url(video.thumbnails.get("default").map(|tn| tn.url.clone()))
 				                                  .set_timestamp(DateTime::parse_from_rfc3339(&video.published_at).ok())
 			                            })
+			                            .sorted()
 			                            .collect::<Vec<_>>();
 			      
 			      feed.notifications.append(&mut entries);

@@ -6,7 +6,10 @@ use serde::{Serialize, Deserialize};
 use futures::stream;
 use futures::stream::Iter;
 
+use crate::feeds::Feed;
+
 pub use serde_json::Value as Json;
+use itertools::Itertools;
 
 pub type Map<T> = BTreeMap<String, T>;
 
@@ -32,6 +35,17 @@ pub trait IteratorEx: Iterator + Sized {
 	fn into_pin<'a>(self) -> Pin<Box<dyn Iterator<Item=Self::Item> + 'a>>
 	                      where Self: 'a {
 		Box::pin(self)
+	}
+	
+	fn kmerge_feeds<'a>(self) -> Feed
+	                          where Self: Iterator<Item = &'a Feed> + Clone {
+		let mut feed = Feed::new();
+		
+		feed.status = self.clone().map(|feed| &feed.status).cloned().kmerge().collect();
+		feed.notifications = self.clone().map(|feed| &feed.notifications).cloned().kmerge().collect();
+		feed.errors = self.clone().map(|feed| &feed.errors).cloned().kmerge().collect();
+		
+		feed
 	}
 }
 

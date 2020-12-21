@@ -7,7 +7,7 @@ use warp::reject::Reject;
 use regex::RegexBuilder;
 use futures::future;
 
-use crate::utils::{Json, Map};
+use crate::utils::{Json, Map, IteratorEx};
 use crate::state::State;
 use crate::feeds::Feed;
 
@@ -59,12 +59,12 @@ fn feeds_get(state: State) -> impl Filter<Extract = impl Reply, Error = Rejectio
 		     let feeds = state.feeds.load();
 		     let feeds = feeds.iter()
 		                      .filter(|(name, _)| filter.as_ref().map_or(true, |reg| reg.is_match(name)))
-		                      .map(|(name, feed)| (name.clone(), feed.clone()));
+		                      .map(|(name, feed)| (name.clone(), feed));
 		
 		     let json = if query.flat.unwrap_or(false) {
-			     reply::json(&feeds.fold(Feed::new(), |acc, (_, feed)| acc.append(feed)))
+			     reply::json(&feeds.map(|(_, feed)| feed).kmerge_feeds())
 		     } else {
-			     reply::json(&feeds.collect::<Map<Feed>>())
+			     reply::json(&feeds.collect::<Map<&Feed>>())
 		     };
 		     
 		     json
