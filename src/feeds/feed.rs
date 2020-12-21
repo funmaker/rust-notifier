@@ -14,11 +14,11 @@ pub struct Feed {
 #[allow(dead_code)]
 impl Feed {
 	pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Entry> {
-		self.status.iter_mut().chain(self.notifications.iter_mut()).chain(self.errors.iter_mut())
+		self.status.iter_mut().chain(self.errors.iter_mut()).chain(self.notifications.iter_mut())
 	}
 	
 	pub fn iter(&self) -> impl Iterator<Item = &Entry> {
-		self.status.iter().chain(self.notifications.iter()).chain(self.errors.iter())
+		self.status.iter().chain(self.errors.iter()).chain(self.notifications.iter())
 	}
 	
 	pub fn new() -> Self {

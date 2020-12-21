@@ -6,10 +6,13 @@ use warp::http::StatusCode;
 use warp::reject::Reject;
 use regex::RegexBuilder;
 use futures::future;
+use rss::{ChannelBuilder, ItemBuilder, CategoryBuilder, GuidBuilder};
+use rss::extension::{Extension, ExtensionBuilder};
 
 use crate::utils::{Json, Map, IteratorEx};
 use crate::state::State;
 use crate::feeds::Feed;
+use std::collections::HashMap;
 
 #[derive(Deserialize)]
 struct WebConfig {
@@ -23,6 +26,14 @@ struct WebConfig {
 struct FetchQuery {
 	filter: Option<String>,
 	flat: Option<bool>,
+	format: Option<Format>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Format {
+	JSON,
+	RSS,
 }
 
 pub async fn serve(config: Json, state: State) -> Result<(), Box<dyn Error>> {
@@ -46,7 +57,7 @@ fn feeds_get(state: State) -> impl Filter<Extract = impl Reply, Error = Rejectio
 	warp::get()
 	     .and(warp::path("feeds"))
 	     .and(warp::query())
-	     .and_then(move |query: FetchQuery| future::ready::<Result<reply::Json, Rejection>>(try {
+	     .and_then(move |query: FetchQuery| future::ready::<Result<Box<dyn Reply>, Rejection>>(try {
 		     let filter = query.filter.map(|filter| RegexBuilder::new(&filter)
 		                                                         .size_limit(1024 * 32)
 		                                                         .dfa_size_limit(1024 * 32)
@@ -56,21 +67,96 @@ fn feeds_get(state: State) -> impl Filter<Extract = impl Reply, Error = Rejectio
 		                       .transpose()
 		                       .map_err(RegexpReject)
 		                       .map_err(reject::custom)?;
-		
+		     
 		     let feeds = state.feeds.load();
 		     let feeds = feeds.iter()
 		                      .filter(|(name, _)| filter.as_ref().map_or(true, |reg| reg.is_match(name)))
 		                      .map(|(name, feed)| (name.clone(), feed));
-		
-		     let json = if query.flat.unwrap_or(false) {
-			     reply::json(&feeds.map(|(_, feed)| feed).kmerge_feeds())
-		     } else {
-			     reply::json(&feeds.collect::<Map<&Feed>>())
-		     };
 		     
-		     json
+		     
+		     if let Some(Format::RSS) = query.format {
+			     Box::new(generate_rss(feeds.map(|(_, feed)| feed).kmerge_feeds())) as Box<dyn Reply>
+		     } else if query.flat.unwrap_or(false) {
+			     Box::new(reply::json(&feeds.map(|(_, feed)| feed).kmerge_feeds())) as Box<dyn Reply>
+		     } else {
+			     Box::new(reply::json(&feeds.collect::<Map<&Feed>>())) as Box<dyn Reply>
+		     }
 	     }))
 	     .with(warp::cors().allow_any_origin()).with(warp::log("cors test"))
+}
+
+fn map<T>(key: &str, value: T) -> HashMap<String, T> {
+	let mut map = HashMap::new();
+	map.insert(key.to_string(), value);
+	map
+}
+
+fn generate_extension(value: Option<Json>, name: String) -> Option<Extension> {
+	let mut builder = ExtensionBuilder::default();
+	builder.name(name.to_string());
+	
+	match value {
+		None => return None,
+		Some(Json::Null) => &mut builder,
+		Some(Json::Bool(value)) => builder.value(value.to_string()),
+		Some(Json::Number(value)) => builder.value(value.to_string()),
+		Some(Json::String(value)) => builder.value(value),
+		Some(Json::Array(value)) => builder.children(value.into_iter()
+		                                                  .enumerate()
+		                                                  .map(|(n, value)| generate_extension(Some(value), n.to_string()).map(|ex| (n.to_string(), vec![ex])))
+		                                                  .flatten()
+		                                                  .collect::<HashMap<_, _>>()),
+		Some(Json::Object(value)) => builder.children(value.into_iter()
+		                                                   .map(|(key, value)| generate_extension(Some(value), key.clone()).map(|ex| (key, vec![ex])))
+		                                                   .flatten()
+		                                                   .collect::<HashMap<_, _>>()),
+	}.build().ok()
+}
+
+fn generate_rss(feed: Feed) -> impl Reply {
+	let body = ChannelBuilder::default()
+		.title("Rust Notifier")
+		.items(feed.iter()
+		           .take(50)
+		           .map(|entry|
+			           ItemBuilder::default()
+				                   .title(entry.title.clone())
+				                   .guid(GuidBuilder::default()
+					                                 .value(entry.guid.clone())
+					                                 .build()
+					                                 .ok())
+				                   .categories(CategoryBuilder::default()
+						                                       .name(entry.feed_name.as_ref().unwrap().clone())
+						                                       .build()
+						                                       .ok()
+						                                       .into_iter()
+						                                       .collect::<Vec<_>>())
+				                   .link(entry.link.clone())
+				                   .description(entry.description.clone())
+				                   .pub_date(entry.timestamp.map(|ts| ts.to_rfc2822()))
+				                   .extensions(map("x-notifier", map("x-notifier",
+					                   vec![
+						                   entry.color.clone().and_then(|color|
+							                   ExtensionBuilder::default()
+							                                    .name("x-notifier-color")
+							                                    .value(color)
+							                                    .build()
+							                                    .ok()
+						                   ),
+						                   generate_extension(entry.extra.clone(), "x-notifier-extra".to_string()),
+					                   ]
+					                   .into_iter()
+					                   .flatten()
+					                   .collect()
+				                   )))
+				                   .build()
+				                   .unwrap())
+		           .collect::<Vec<_>>())
+		.build()
+		.unwrap()
+		.to_string();
+	
+	reply::with_header(body, "Content-Type", "application/xml; charset=UTF-8")
 }
 
 #[derive(Debug)]
