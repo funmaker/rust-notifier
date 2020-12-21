@@ -6,6 +6,7 @@ use tokio::time::Duration;
 use itertools::Itertools;
 use futures::{StreamExt, TryFutureExt};
 use regex::RegexBuilder;
+use serde_json::json;
 
 use super::Provider;
 use crate::utils::{Map, Json, IteratorEx, hash, from_unix_timestamp};
@@ -92,6 +93,7 @@ impl Provider for ChanProvider {
 			                                .size_limit(1024 * 32)
 			                                .dfa_size_limit(1024 * 32)
 			                                .nest_limit(10)
+			                                .case_insensitive(true)
 			                                .build();
 			      
 			      let filter = match filter {
@@ -114,13 +116,14 @@ impl Provider for ChanProvider {
 							                   .set_description(op.com.clone())
 							                   .link(&format!("https://boards.4chan.org/{}/thread/{}", board, op.no))
 							                   .timestamp(from_unix_timestamp(op.time))
-							                   .extra(serde_json::to_value(Extra {
-								                   replies: op.replies,
-								                   images: op.images,
-								                   page,
-								                   board: board.clone(),
-								                   id: op.no,
-							                   }).unwrap())
+							                   .set_image_url(op.tim.map(|tim| format!("https://i.4cdn.org/{}/{}s.jpg", board, tim)))
+							                   .extra(json!({
+								                   "replies": op.replies,
+								                   "images": op.images,
+								                   "page": page,
+								                   "board": board,
+								                   "id": op.no
+							                   }))
 						             })
 						             .for_each(|op| feed.status.push(op));
 					      },

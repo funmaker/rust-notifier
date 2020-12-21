@@ -11,6 +11,7 @@ mod null;
 mod rss;
 mod youtube;
 mod chan;
+mod vinesauce;
 
 use null::NullProvider;
 use youtube::YouTubeProvider;
@@ -20,6 +21,7 @@ use crate::config::ConfigFeedEntry;
 use crate::feeds::{Feed, Feeds};
 use crate::utils::{Map, Json};
 use crate::state::State;
+use crate::providers::vinesauce::VinesauceProvider;
 
 #[async_trait(?Send)]
 trait Provider: Send {
@@ -54,6 +56,7 @@ fn init_provider(name: String, config: Json) -> Box<dyn Provider> {
 		"rss" => boxed(RssProvider::new(config)),
 		"youtube" => boxed(YouTubeProvider::new(config)),
 		"chan" => boxed(ChanProvider::new(config)),
+		"vinesauce" => boxed(VinesauceProvider::new(config)),
 		_ => Err(ProviderError::NotFound),
 	};
 	

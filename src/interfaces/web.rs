@@ -51,6 +51,7 @@ fn feeds_get(state: State) -> impl Filter<Extract = impl Reply, Error = Rejectio
 		                                                         .size_limit(1024 * 32)
 		                                                         .dfa_size_limit(1024 * 32)
 		                                                         .nest_limit(10)
+		                                                         .case_insensitive(true)
 		                                                         .build())
 		                       .transpose()
 		                       .map_err(RegexpReject)
