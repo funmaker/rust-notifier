@@ -38,7 +38,6 @@ struct Data<T> {
 
 #[derive(Deserialize)]
 struct Stream {
-	id: String,
 	user_name: String,
 	game_name: String,
 	title: String,
