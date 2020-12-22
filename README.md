@@ -1,7 +1,7 @@
 # rust-notifier
 Server in Rust for generating notifications from RSS, 4chan threads, YouTube subscriptions and more.
 
-Clients:
+## Clients:
 - [KLWP Home Screen](https://github.com/funmaker/home-screen)
 - [Mumble Plugin](https://github.com/Luksor/mumo-notifier) (Outdated)
 
