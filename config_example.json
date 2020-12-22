@@ -1,15 +1,21 @@
 {
+    "fetchIntervalSecs": 900,
     "feeds": {
         "example-rss": {
             "provider": "rss",
-            "providerData": "http://feeds.rssboard.org/rssboard"
+            "providerData": "http://feeds.rssboard.org/rssboard",
+            "color": "#72AF00"
         },
         "example-chan": {
             "provider": "chan",
             "providerData": {
                 "boards": ["g"],
-                "filters": "dpt"
+                "filter": "dpt"
             }
+        },
+        "example-vinesauce": {
+            "provider": "vinesauce",
+            "providerData": null
         }
     },
     "providers": {
@@ -23,25 +29,17 @@
             "enabled": false,
             "apiKey": "===YOUR API KEY==="
         },
-        "wonziu": {
-            "enabled": false
-        },
         "vinesauce": {
-            "enabled": false
+            "enabled": true
         }
     },
     "interfaces": {
-        "rss": {
+        "web": {
             "enabled": true,
-            "port": 9041
-        },
-        "websocket": {
-            "enabled": true,
+            "rest": true,
+            "rss": true,
+            "websocket": true,
             "port": 9039
-        },
-        "tcp": {
-            "enabled": true,
-            "port": 9040
         }
     }
 }
