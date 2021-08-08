@@ -116,7 +116,9 @@ fn generate_extension(value: Option<Json>, name: String) -> Option<Extension> {
 fn generate_rss(feed: Feed) -> impl Reply {
 	let body = ChannelBuilder::default()
 		.title("Rust Notifier")
-		.items(feed.iter()
+		.items(feed.status
+		           .iter()
+		           .chain(feed.notifications.iter())
 		           .take(50)
 		           .map(|entry|
 			           ItemBuilder::default()

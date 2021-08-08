@@ -45,6 +45,7 @@ fn encode<'a>(text: &'a str) -> impl Display + 'a {
 async fn fetch<Item: DeserializeOwned + std::fmt::Debug>(url: String) -> Result<Vec<Result<Item, FetchError>>, FetchError> {
 	let result = reqwest::get(&url)
 	                     .await?
+	                     .error_for_status()?
 	                     .bytes()
 	                     .await?;
 	
@@ -73,6 +74,7 @@ async fn fetch_all<Item: DeserializeOwned>(url: String) -> Result<Vec<Result<Ite
 		
 		let result = reqwest::get(&url)
 		                           .await?
+		                           .error_for_status()?
 		                           .bytes()
 		                           .await?;
 		
@@ -215,6 +217,8 @@ impl Provider for YouTubeProvider {
 			      let subs = channel_subs.get(channel).flatten();
 			      let subs = try_feed!(subs, feed, "Unable to get subscriptions for {} channel.", channel; return (name, feed));
 			      
+			      let empty_vec = vec![];
+			      
 			      let mut entries = subs.iter()
 			                            .flat_map(|sub| {
 				                            let sub = try_feed!(sub, feed, "Unable to fetch subscription for {} channel.", channel; return None);
@@ -223,7 +227,10 @@ impl Provider for YouTubeProvider {
 				                            let uploads = channel_uploads.get(sub).flatten();
 				                            let uploads = try_feed!(uploads, feed, "Unable to get uploads playlist for {} channel.", sub; return None);
 				
-				                            let videos = uploads_videos.get(uploads).flatten();
+				                            let videos = match uploads_videos.get(uploads).flatten() {
+					                            Err(FetchError::HTTPError(err)) if err.status().unwrap_or_default() == 404 => Ok(&empty_vec), // Empty channels return 404 error
+					                            videos => videos,
+				                            };
 				                            let videos = try_feed!(videos, feed, "Unable to get videos for {} channel, {} playlist.", sub, uploads; return None);
 				
 				                            Some(videos)

@@ -78,6 +78,7 @@ impl Provider for VinesauceProvider {
 									      Entry::new(&stream.title, &hash(&(&stream.started_at, "vinesauce")))
 									            .set_timestamp(DateTime::parse_from_rfc3339(&stream.started_at).ok())
 									            .link("http://vinesauce.com/")
+									            .description(&stream.game_name)
 									            .image_url(&stream.thumbnail_url.replace("{width}", "250").replace("{height}", "140"))
 									            .extra(json!({ "displayName": stream.user_name }))
 								      )
