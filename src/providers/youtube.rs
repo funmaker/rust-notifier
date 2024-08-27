@@ -1,8 +1,7 @@
-use std::error::Error;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use err_derive::Error;
+use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -11,7 +10,7 @@ use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use chrono::DateTime;
 use serde_json::json;
-
+use thiserror::Error;
 use crate::utils::{Json, Map, IteratorEx};
 use crate::providers::Provider;
 use crate::config::ConfigFeedEntry;
@@ -41,7 +40,7 @@ struct YouTubeConfig {
 }
 
 impl YouTubeProvider {
-	pub fn new(config: Json) -> Result<Self, Box<dyn Error>> {
+	pub fn new(config: Json) -> Result<Self> {
 		let config: YouTubeConfig = serde_json::from_value(config)?;
 		
 		Ok(YouTubeProvider {
@@ -54,14 +53,14 @@ impl YouTubeProvider {
 		})
 	}
 	
-	pub async fn refresh_access_token(&mut self) -> Result<String, FetchError> {
+	pub async fn refresh_access_token(&mut self) -> Result<String> {
 		if self.access_token.is_some() && self.access_expires > Instant::now() {
 			return Ok(self.access_token.clone().unwrap())
 		}
 		
-		let client_id = self.client_id.clone().ok_or(FetchError::NoOauth)?;
-		let client_secret = self.client_secret.clone().ok_or(FetchError::NoOauth)?;
-		let refresh_token = self.refresh_token.clone().ok_or(FetchError::NoOauth)?;
+		let client_id = self.client_id.clone().ok_or(NoOauthError)?;
+		let client_secret = self.client_secret.clone().ok_or(NoOauthError)?;
+		let refresh_token = self.refresh_token.clone().ok_or(NoOauthError)?;
 		
 		let body = format!("client_id={}&\
 							client_secret={}&\
@@ -91,7 +90,7 @@ fn encode<'a>(text: &'a str) -> impl Display + 'a {
 	utf8_percent_encode(text, NON_ALPHANUMERIC)
 }
 
-async fn fetch<Item: DeserializeOwned + std::fmt::Debug>(url: String) -> Result<Vec<Result<Item, FetchError>>, FetchError> {
+async fn fetch<Item: DeserializeOwned + std::fmt::Debug>(url: String) -> Result<Vec<Result<Item>>> {
 	let result = reqwest::get(&url)
 	                     .await?
 	                     .error_for_status()?
@@ -113,7 +112,7 @@ async fn fetch<Item: DeserializeOwned + std::fmt::Debug>(url: String) -> Result<
 	               .collect())
 }
 
-async fn fetch_all<Item: DeserializeOwned>(url: String) -> Result<Vec<Result<Item, FetchError>>, FetchError> {
+async fn fetch_all<Item: DeserializeOwned>(url: String) -> Result<Vec<Result<Item>>> {
 	let mut ret = vec![];
 	let mut next_page_token: Option<String> = None;
 	
@@ -159,7 +158,7 @@ macro_rules! try_feed (
 	{ $result:expr, $feed:expr, $reason:literal, $( $arg:expr ),*; $then:expr } => {
 		match $result {
 			Err(err) => {
-				$feed.add_err(&format!( $reason, $( $arg ),* ), &err.to_string());
+				$feed.add_err(&format!( $reason, $( $arg ),* ), &err);
 				$then
 			},
 			Ok(val) => val,
@@ -169,7 +168,7 @@ macro_rules! try_feed (
 
 #[async_trait(?Send)]
 impl Provider for YouTubeProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
 		let mut skipped_errors = vec![];
 		
 		// Feed -> Channel
@@ -178,20 +177,20 @@ impl Provider for YouTubeProvider {
 			                         (name.to_string(), serde_json::from_value::<String>(entry.provider_data.clone())
 			                                                                   .map_err(Into::into))
 		                         )
-		                         .collect::<Map<Result<String, FetchError>>>();
+		                         .collect::<Map<Result<String>>>();
 		
 		let uses_oauth = feed_channel.values().any(|channel| channel.as_deref().ok() == Some("mine"));
 		
-		let access_token = if uses_oauth {
+		let access_token: Result<_> = if uses_oauth {
 			match self.refresh_access_token().await {
 				Ok(access_token) => Ok(access_token),
 				Err(err) => {
 					skipped_errors.push(err);
-					Err(FetchError::NoOauth)
+					Err(NoOauthError.into())
 				}
 			}
 		} else {
-			Err(FetchError::NoOauth)
+			Err(NoOauthError.into())
 		};
 		
 		// Channel -> Subscriptions
@@ -210,7 +209,7 @@ impl Provider for YouTubeProvider {
 						                                       "mine" => true,
 						                                       "maxResults" => 50 ].await
 					                               },
-					                               _ => Err(FetchError::NoOauth),
+					                               _ => Err(NoOauthError.into()),
 				                               }
 			                               } else {
 				                               ytcall![self.api_key, "subscriptions", YouTubeSubscription,
@@ -251,8 +250,8 @@ impl Provider for YouTubeProvider {
 				                                     .into_stream()
 			                                  },
 			                                  Ok(mut subs) => {
-				                                  skipped_errors.extend(subs.drain_filter(|c| c.is_err()).filter_map(Result::err));
-		                                    
+				                                  skipped_errors.extend(subs.extract_if(|c| c.is_err()).filter_map(Result::err));
+				                                  
 				                                  subs.into_iter()
 				                                      .flatten()
 				                                      .map(|sub| (sub.id, Ok(sub.content_details.related_playlists.uploads.clone())))
@@ -285,13 +284,15 @@ impl Provider for YouTubeProvider {
 			      let mut feed = Feed::new();
 			      
 			      for err in skipped_errors.iter() {
-				      feed.add_err("Unexpected error while fetching.", &err.to_string());
+				      feed.add_err("Unexpected error while fetching.", &err);
 			      }
 			      
-			      let channel = feed_channel.get(&name).flatten();
+			      let missing_resource = anyhow::Error::new(ResourceNotFoundError);
+			      
+			      let channel = feed_channel.get(&name).opt_flat(&missing_resource);
 			      let channel = try_feed!(channel, feed, "Unable to find channel for {} feed.", name; return (name, feed));
 			      
-			      let subs = channel_subs.get(channel).flatten();
+			      let subs = channel_subs.get(channel).opt_flat(&missing_resource);
 			      let subs = try_feed!(subs, feed, "Unable to get subscriptions for {} channel.", channel; return (name, feed));
 			      
 			      let empty_vec = vec![];
@@ -300,16 +301,19 @@ impl Provider for YouTubeProvider {
 			                            .flat_map(|sub| {
 				                            let sub = try_feed!(sub, feed, "Unable to fetch subscription for {} channel.", channel; return None);
 				                            let sub = &sub.snippet.resource_id.channel_id;
-				
-				                            let uploads = channel_uploads.get(sub).flatten();
+				                            
+				                            let uploads = channel_uploads.get(sub).opt_flat(Arc::new(ResourceNotFoundError.into()));
 				                            let uploads = try_feed!(uploads, feed, "Unable to get uploads playlist for {} channel.", sub; return None);
-				
-				                            let videos = match uploads_videos.get(uploads).flatten() {
-					                            Err(FetchError::HTTPError(err)) if err.status().unwrap_or_default() == 404 => Ok(&empty_vec), // Empty channels return 404 error
+				                            
+				                            let videos = match uploads_videos.get(uploads).opt_flat(&missing_resource) {
+					                            Err(err) if err.downcast_ref()
+					                                           .and_then(|err: &reqwest::Error| err.status().map(|s| s.as_u16()))
+						                                           == Some(404)
+							                                           => Ok(&empty_vec).into(), // Empty channels return 404 error
 					                            videos => videos,
 				                            };
 				                            let videos = try_feed!(videos, feed, "Unable to get videos for {} channel, {} playlist.", sub, uploads; return None);
-				
+				                            
 				                            Some(videos)
 			                            })
 			                            .flat_map(|videos| videos.iter())
@@ -333,35 +337,42 @@ impl Provider for YouTubeProvider {
 	}
 }
 
+#[derive(Debug, Copy, Clone, Error)]
+#[error("API did not returned requested resource")]
+pub struct ResourceNotFoundError;
 
-#[derive(Debug, Error)]
-pub enum FetchError {
-	#[error(display = "API did not returned requested resource")] NotFound,
-	#[error(display = "Client ID, Client Secret and Refresh Token are required to lookup own channel's subscriptions")] NoOauth,
-	#[error(display = "{}", _0)] HTTPError(#[error(source)] reqwest::Error),
-	#[error(display = "{}", _0)] JSONError(#[error(source)] serde_json::Error),
-}
+#[derive(Debug, Copy, Clone, Error)]
+#[error("Client ID, Client Secret and Refresh Token are required to lookup own channel's subscriptions")]
+pub struct NoOauthError;
 
-
-trait Flatten {
+trait OptFlatten {
 	type Output;
-	fn flatten(self) -> Self::Output;
+	type Error: Clone;
+	
+	fn opt_flat(self, missing: Self::Error) -> Result<Self::Output, Self::Error>;
 }
 
-impl<'a, T> Flatten for Option<&'a Result<T, FetchError>> {
-	type Output = Result<&'a T, &'a FetchError>;
+impl<'a, T> OptFlatten for Option<&'a Result<T>> {
+	type Output = &'a T;
+	type Error = &'a anyhow::Error;
 	
-	fn flatten(self) -> Self::Output {
-		self.unwrap_or(&Err(FetchError::NotFound)).as_ref()
+	fn opt_flat(self, missing: Self::Error) -> Result<Self::Output, Self::Error> {
+		self.map(|r| r.as_ref())
+		    .ok_or(missing)
+		    .flatten()
+			.into()
 	}
 }
 
-impl<'a, T> Flatten for Option<&'a Result<T, Arc<FetchError>>> {
-	type Output = Result<&'a T, Arc<FetchError>>;
+impl<'a, T> OptFlatten for Option<&'a Result<T, Arc<anyhow::Error>>> {
+	type Output = &'a T;
+	type Error = Arc<anyhow::Error>;
 	
-	fn flatten(self) -> Self::Output {
+	fn opt_flat(self, missing: Self::Error) -> Result<Self::Output, Self::Error> {
 		self.map(|r| r.as_ref().map_err(|err| err.clone()))
-		    .unwrap_or(Err(Arc::new(FetchError::NotFound)))
+		    .ok_or(missing.clone())
+		    .flatten()
+		    .into()
 	}
 }
 

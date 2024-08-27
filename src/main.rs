@@ -1,14 +1,15 @@
-#![feature(drain_filter)]
+#![feature(extract_if)]
 #![feature(result_flattening)]
 #![feature(trace_macros)]
 #![feature(try_blocks)]
 #![feature(never_type)]
+#![feature(duration_constructors)]
 
 use std::env;
 use std::time::Duration;
-use err_derive::Error;
 use getopts::Options;
 use futures::future;
+use anyhow::Result;
 
 mod utils;
 mod feeds;
@@ -23,7 +24,7 @@ use state::State;
 
 
 #[tokio::main]
-pub async fn main() -> Result<(), Error> {
+pub async fn main() -> Result<()> {
 	let args: Vec<String> = env::args().collect();
 	let program = args[0].clone();
 	let mut opts = Options::new();
@@ -59,12 +60,4 @@ pub async fn main() -> Result<(), Error> {
 fn print_usage(program: &str, opts: Options) {
 	let brief = format!("Usage: {} [options]", program);
 	print!("{}", opts.usage(&brief));
-}
-
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error(display = "{}", _0)] GetoptsError(#[error(source)] getopts::Fail),
-	#[error(display = "{}", _0)] Infallible(#[error(source)] std::convert::Infallible),
-	#[error(display = "{}", _0)] ConfigLoadError(#[error(source)] config::LoadError),
-	#[error(display = "{}", _0)] JoinError(#[error(source)] tokio::task::JoinError),
 }

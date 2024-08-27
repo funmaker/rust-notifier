@@ -2,9 +2,9 @@ use std::time::{Duration, Instant};
 use std::sync::Arc;
 use async_trait::async_trait;
 use futures::future::join_all;
-use err_derive::Error;
+use anyhow::Result;
+use thiserror::Error;
 use serde::Deserialize;
-use tokio::task::JoinError;
 use tokio::time;
 
 mod null;
@@ -25,17 +25,17 @@ use crate::providers::vinesauce::VinesauceProvider;
 
 #[async_trait(?Send)]
 trait Provider: Send {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed>;
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed>;
 }
 
 pub struct Providers {
 	providers: Map<Box<dyn Provider>>,
 }
 
-fn boxed<P: Provider + 'static>(result: Result<P, Box<dyn std::error::Error>>) -> Result<Box<dyn Provider>, ProviderError> {
+fn boxed<P: Provider + 'static>(result: Result<P>) -> Result<Box<dyn Provider>> {
 	match result {
 		Ok(provider) => Ok(Box::new(provider)),
-		Err(err) => Err(ProviderError::InitError(err)),
+		Err(err) => Err(err),
 	}
 }
 
@@ -46,8 +46,8 @@ struct AnyProviderConfig {
 
 fn init_provider(name: String, config: Json) -> Box<dyn Provider> {
 	match serde_json::from_value(config.clone()) {
-		Ok(AnyProviderConfig{ enabled }) if !enabled => return Box::new(NullProvider::new(Box::new(ProviderError::Disabled))),
-		Err(err) => return Box::new(NullProvider::new(Box::new(err))),
+		Ok(AnyProviderConfig{ enabled }) if !enabled => return Box::new(NullProvider::new(ProviderDisabledError.into())),
+		Err(err) => return Box::new(NullProvider::new(err.into())),
 		_ => {},
 	}
 	
@@ -57,12 +57,12 @@ fn init_provider(name: String, config: Json) -> Box<dyn Provider> {
 		"youtube" => boxed(YouTubeProvider::new(config)),
 		"chan" => boxed(ChanProvider::new(config)),
 		"vinesauce" => boxed(VinesauceProvider::new(config)),
-		_ => Err(ProviderError::NotFound),
+		_ => Err(ProviderNotFoundError.into()),
 	};
 	
 	provider.unwrap_or_else(|err| {
 		eprintln!("Unable to load {} provider: {}", name, err.to_string());
-		Box::new(NullProvider::new(Box::new(err)))
+		Box::new(NullProvider::new(err.into()))
 	})
 }
 
@@ -75,15 +75,18 @@ impl Providers {
 		Providers { providers }
 	}
 	
-	pub async fn fetch_feeds(&mut self, feeds_configs: &Map<ConfigFeedEntry>) -> Feeds {
+	pub async fn fetch_feeds(&mut self, feeds_configs: &Map<ConfigFeedEntry>, client: reqwest::Client) -> Feeds {
+		let client_ref = &client;
 		let feeds = self.providers.iter_mut()
 		                          .map(|(name, provider)| async move {
+			                          let client = client_ref.clone();
+			                          
 			                          let configs: Map<&ConfigFeedEntry> = feeds_configs.iter()
 			                                                                            .filter(|entry| &entry.1.provider == name)
 			                                                                            .map(|(name, entry)| (name.clone(), entry))
 			                                                                            .collect();
 			                          
-			                          let mut feeds = provider.fetch(configs).await;
+			                          let mut feeds = provider.fetch(configs, client.clone()).await;
 			                          
 			                          for (name, feed) in feeds.iter_mut() {
 				                          if let Some(config) = feeds_configs.get(name) {
@@ -102,8 +105,9 @@ impl Providers {
 		               .fold(Feeds::new(), |mut acc, mut feeds| { acc.append(&mut feeds); acc })
 	}
 	
-	pub async fn fetch_loop(&mut self, state: State, fetch_interval: Duration) -> Result<(), JoinError> {
+	pub async fn fetch_loop(&mut self, state: State, fetch_interval: Duration) -> Result<()> {
 		let mut interval = time::interval(fetch_interval);
+		let client = reqwest::Client::new();
 		
 		loop {
 			interval.tick().await;
@@ -111,7 +115,7 @@ impl Providers {
 			println!("Fetching feeds...");
 			let now = Instant::now();
 			
-			let feeds = self.fetch_feeds(&state.feed_entries.load()).await;
+			let feeds = self.fetch_feeds(&state.feed_entries.load(), client.clone()).await;
 			state.feeds.store(Arc::new(feeds));
 			
 			println!("Fetch done. ({}s)", (now.elapsed().as_secs_f32() * 100.0).round() / 100.0);
@@ -120,8 +124,9 @@ impl Providers {
 }
 
 #[derive(Debug, Error)]
-pub enum ProviderError {
-	#[error(display = "Provider not found")] NotFound,
-	#[error(display = "Provider is disabled")] Disabled,
-	#[error(display = "Provider failed to init: {}", _0)] InitError(Box<dyn std::error::Error>),
-}
+#[error("Provider not found")]
+pub struct ProviderNotFoundError;
+
+#[derive(Debug, Error)]
+#[error("Provider is disabled")]
+pub struct ProviderDisabledError;

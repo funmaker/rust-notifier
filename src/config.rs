@@ -1,8 +1,8 @@
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use err_derive::Error;
 use serde::{Serialize, Deserialize};
+use anyhow::Result;
 
 use crate::utils::*;
 
@@ -24,7 +24,7 @@ pub struct ConfigFeedEntry {
 }
 
 impl Config {
-	pub async fn load(path: impl AsRef<Path>) -> Result<Config, LoadError> {
+	pub async fn load(path: impl AsRef<Path>) -> Result<Config> {
 		match File::open(&path).await {
 			Ok(mut file) => {
 				let mut config_content = vec![];
@@ -47,22 +47,9 @@ impl Config {
 		}
 	}
 	
-	pub async fn save(&self, path: impl AsRef<Path>) -> Result<(), SaveError> {
+	pub async fn save(&self, path: impl AsRef<Path>) -> Result<()> {
 		let mut file = File::create(&path).await?;
 		file.write_all(serde_json::to_string_pretty(self)?.as_bytes()).await?;
 		Ok(())
 	}
-}
-
-#[derive(Debug, Error)]
-pub enum LoadError {
-	#[error(display = "{}", _0)] IOError(#[error(source)] std::io::Error),
-	#[error(display = "{}", _0)] JSONError(#[error(source)] serde_json::Error),
-	#[error(display = "{}", _0)] SaveError(#[error(source)] SaveError),
-}
-
-#[derive(Debug, Error)]
-pub enum SaveError {
-	#[error(display = "{}", _0)] IOError(#[error(source)] std::io::Error),
-	#[error(display = "{}", _0)] JSONError(#[error(source)] serde_json::Error),
 }

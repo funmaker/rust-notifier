@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use serde::{Deserialize, Serialize};
 use warp::{Filter, Rejection, Reply, reply, reject};
@@ -8,11 +8,11 @@ use regex::RegexBuilder;
 use futures::future;
 use rss::{ChannelBuilder, ItemBuilder, CategoryBuilder, GuidBuilder};
 use rss::extension::{Extension, ExtensionBuilder};
+use anyhow::Result;
 
 use crate::utils::{Json, Map, IteratorEx};
 use crate::state::State;
 use crate::feeds::Feed;
-use std::collections::HashMap;
 
 #[derive(Deserialize)]
 struct WebConfig {
@@ -36,7 +36,7 @@ enum Format {
 	RSS,
 }
 
-pub async fn serve(config: Json, state: State) -> Result<(), Box<dyn Error>> {
+pub async fn serve(config: Json, state: State) -> Result<()> {
 	let config: WebConfig = serde_json::from_value(config)?;
 	
 	let fetch = feeds_get(state.clone());
@@ -85,32 +85,29 @@ fn feeds_get(state: State) -> impl Filter<Extract = impl Reply, Error = Rejectio
 	     .with(warp::cors().allow_any_origin()).with(warp::log("cors test"))
 }
 
-fn map<T>(key: &str, value: T) -> HashMap<String, T> {
-	let mut map = HashMap::new();
+fn map<T>(key: &str, value: T) -> BTreeMap<String, T> {
+	let mut map = BTreeMap::new();
 	map.insert(key.to_string(), value);
 	map
 }
 
-fn generate_extension(value: Option<Json>, name: String) -> Option<Extension> {
+fn generate_extension(value: Json, name: String) -> Extension {
 	let mut builder = ExtensionBuilder::default();
 	builder.name(name.to_string());
 	
 	match value {
-		None => return None,
-		Some(Json::Null) => &mut builder,
-		Some(Json::Bool(value)) => builder.value(value.to_string()),
-		Some(Json::Number(value)) => builder.value(value.to_string()),
-		Some(Json::String(value)) => builder.value(value),
-		Some(Json::Array(value)) => builder.children(value.into_iter()
-		                                                  .enumerate()
-		                                                  .map(|(n, value)| generate_extension(Some(value), n.to_string()).map(|ex| (n.to_string(), vec![ex])))
-		                                                  .flatten()
-		                                                  .collect::<HashMap<_, _>>()),
-		Some(Json::Object(value)) => builder.children(value.into_iter()
-		                                                   .map(|(key, value)| generate_extension(Some(value), key.clone()).map(|ex| (key, vec![ex])))
-		                                                   .flatten()
-		                                                   .collect::<HashMap<_, _>>()),
-	}.build().ok()
+		Json::Null => &mut builder,
+		Json::Bool(value) => builder.value(value.to_string()),
+		Json::Number(value) => builder.value(value.to_string()),
+		Json::String(value) => builder.value(value),
+		Json::Array(value) => builder.children(value.into_iter()
+		                                            .enumerate()
+		                                            .map(|(n, value)| (n.to_string(), vec![generate_extension(value, n.to_string())]))
+		                                            .collect::<BTreeMap<_, _>>()),
+		Json::Object(value) => builder.children(value.into_iter()
+		                                             .map(|(key, value)| (key.clone(), vec![generate_extension(value, key)]))
+		                                             .collect::<BTreeMap<_, _>>()),
+	}.build()
 }
 
 fn generate_rss(feed: Feed) -> impl Reply {
@@ -125,37 +122,30 @@ fn generate_rss(feed: Feed) -> impl Reply {
 				                   .title(entry.title.clone())
 				                   .guid(GuidBuilder::default()
 					                                 .value(entry.guid.clone())
-					                                 .build()
-					                                 .ok())
-				                   .categories(CategoryBuilder::default()
-						                                       .name(entry.feed_name.as_ref().unwrap().clone())
-						                                       .build()
-						                                       .ok()
-						                                       .into_iter()
-						                                       .collect::<Vec<_>>())
+					                                 .build())
+				                   .categories([CategoryBuilder::default()
+				                                                .name(entry.feed_name.as_ref().unwrap().clone())
+				                                                .build()])
 				                   .link(entry.link.clone())
 				                   .description(entry.description.clone())
 				                   .pub_date(entry.timestamp.map(|ts| ts.to_rfc2822()))
 				                   .extensions(map("x-notifier", map("x-notifier",
 					                   vec![
-						                   entry.color.clone().and_then(|color|
+						                   entry.color.clone().map(|color|
 							                   ExtensionBuilder::default()
 							                                    .name("x-notifier-color")
 							                                    .value(color)
 							                                    .build()
-							                                    .ok()
 						                   ),
-						                   generate_extension(entry.extra.clone(), "x-notifier-extra".to_string()),
+						                   entry.extra.clone().map(|extra| generate_extension(extra, "x-notifier-extra".to_string())),
 					                   ]
 					                   .into_iter()
 					                   .flatten()
 					                   .collect()
 				                   )))
-				                   .build()
-				                   .unwrap())
+				                   .build())
 		           .collect::<Vec<_>>())
 		.build()
-		.unwrap()
 		.to_string();
 	
 	reply::with_header(body, "Content-Type", "application/xml; charset=UTF-8")
@@ -177,22 +167,22 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
 	
 	if err.is_not_found() {
 		code = StatusCode::NOT_FOUND;
-	} else if let Some(_) = err.find::<warp::reject::InvalidQuery>() {
+	} else if let Some(_) = err.find::<reject::InvalidQuery>() {
 		code = StatusCode::BAD_REQUEST;
 	} else if let Some(e) = err.find::<RegexpReject>() {
 		code = StatusCode::BAD_REQUEST;
 		message = Some(e.0.to_string());
-	} else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+	} else if let Some(_) = err.find::<reject::MethodNotAllowed>() {
 		code = StatusCode::METHOD_NOT_ALLOWED;
 	} else {
 		eprintln!("unhandled rejection: {:?}", err);
 		code = StatusCode::INTERNAL_SERVER_ERROR;
 	}
 	
-	let json = warp::reply::json(&ErrorMessage {
+	let json = reply::json(&ErrorMessage {
 		code: code.as_u16(),
 		message: message.unwrap_or(code.to_string()),
 	});
 	
-	Ok(warp::reply::with_status(json, code))
+	Ok(reply::with_status(json, code))
 }

@@ -1,10 +1,10 @@
-use std::error::Error;
 use async_trait::async_trait;
 use futures::{StreamExt, TryFutureExt};
 use rss::Channel;
 use bytes::Bytes;
 use chrono::DateTime;
 use itertools::Itertools;
+use anyhow::Result;
 
 use super::Provider;
 use crate::utils::{Json, Map, hash, IteratorEx};
@@ -16,14 +16,14 @@ const MAX_CON_REQUESTS: usize = 10;
 pub struct RssProvider;
 
 impl RssProvider {
-	pub fn new(_config: Json) -> Result<Self, Box<dyn Error>> {
+	pub fn new(_config: Json) -> Result<Self> {
 		Ok(RssProvider)
 	}
 }
 
 #[async_trait(?Send)]
 impl Provider for RssProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
 		// Url -> Feed
 		let data = config.values()
 		                 .map(|entry| entry.provider_data.as_str())
@@ -50,7 +50,7 @@ impl Provider for RssProvider {
 		      .map(|(name, entry)| {
 			      let feed = serde_json::from_value(entry.provider_data.clone())
 			                            .map(|url: String| data.get(&url).cloned().unwrap())
-			                            .unwrap_or_else(|err| Feed::from_err("Failed to parse provider_data", &err.to_string()));
+			                            .unwrap_or_else(|err| Feed::from_err("Failed to parse provider_data", &err.into()));
 			      
 			      (name, feed)
 		      })
@@ -83,7 +83,7 @@ fn parse_response(response: reqwest::Result<Bytes>, url: &str) -> Feed {
 			
 			feed
 		},
-		Ok(Err(err)) => Feed::from_err(&format!("Unable to parse {}", url), &err.to_string()),
-		Err(err) => Feed::from_err(&format!("Unable to fetch {}", url), &err.to_string()),
+		Ok(Err(err)) => Feed::from_err(&format!("Unable to parse {}", url), &err.into()),
+		Err(err) => Feed::from_err(&format!("Unable to fetch {}", url), &err.into()),
 	}
 }

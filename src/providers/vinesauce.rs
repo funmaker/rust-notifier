@@ -1,9 +1,9 @@
-use std::error::Error;
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use serde::Deserialize;
 use serde_json::json;
 use chrono::DateTime;
+use anyhow::Result;
 
 use super::Provider;
 use crate::utils::{Json, Map, hash};
@@ -13,7 +13,7 @@ use crate::feeds::{Feed, Entry};
 pub struct VinesauceProvider;
 
 impl VinesauceProvider {
-	pub fn new(_config: Json) -> Result<Self, Box<dyn Error>> {
+	pub fn new(_config: Json) -> Result<Self> {
 		Ok(VinesauceProvider)
 	}
 }
@@ -52,17 +52,18 @@ struct Channel {
 
 #[async_trait(?Send)]
 impl Provider for VinesauceProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
 		let team_data = reqwest::get("https://vinesauce.com/twitch/team-data-helix.json")
-		                        .and_then(|res| res.bytes())
+		                        .map_err(anyhow::Error::new)
+		                        .and_then(|res| res.bytes().map_err(Into::into))
 		                        .await
-		                        .map(|bytes| serde_json::from_slice::<TeamData>(&*bytes));
+		                        .map(|bytes| serde_json::from_slice::<TeamData>(&*bytes).map_err(anyhow::Error::new));
 		
 		config.into_iter()
 		      .map(|(name, config)| {
 			      let channels = match serde_json::from_value::<Option<ProviderData>>(config.provider_data.clone()) {
 				      Ok(provider_data) => provider_data.map(|provider_data| provider_data.channels).flatten(),
-				      Err(err) => return (name, Feed::from_err("Unable to parse providerData", &err.to_string())),
+				      Err(err) => return (name, Feed::from_err("Unable to parse providerData", &err.into())),
 			      };
 			      
 			      match &team_data {
@@ -88,8 +89,8 @@ impl Provider for VinesauceProvider {
 					      
 					      (name, feed)
 				      }
-				      Ok(Err(err)) => (name, Feed::from_err("Failed to parse team data.", &err.to_string())),
-				      Err(err) => (name, Feed::from_err("Failed to fetch team data.", &err.to_string())),
+				      Ok(Err(err)) => (name, Feed::from_err("Failed to parse team data.", err)),
+				      Err(err) => (name, Feed::from_err("Failed to fetch team data.", err)),
 			      }
 		      })
 		      .collect()

@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::Error;
 use async_trait::async_trait;
 
 use super::Provider;
@@ -7,20 +7,20 @@ use crate::config::ConfigFeedEntry;
 use crate::feeds::Feed;
 
 pub struct NullProvider {
-	error: String,
+	error: Error,
 }
 
 impl NullProvider {
-	pub fn new(error: Box<dyn Error>) -> Self {
+	pub fn new(error: Error) -> Self {
 		NullProvider{
-			error: error.to_string()
+			error,
 		}
 	}
 }
 
 #[async_trait(?Send)]
 impl Provider for NullProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, _client: reqwest::Client) -> Map<Feed> {
 		let feed = Feed::from_err("Failed to load provider", &self.error);
 		
 		config.into_iter()

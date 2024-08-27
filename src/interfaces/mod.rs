@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use futures::future;
-use tokio::task::JoinError;
-use err_derive::Error;
+use anyhow::Result;
+use thiserror::Error;
 
 mod web;
 
@@ -23,8 +23,8 @@ async fn serve_interface(name: String, config: Json, state: State) {
 	
 	// Add new interfaces here
 	let result = match &*name {
-		"web" => web::serve(config, state).await.map_err(Into::into),
-		_ => Err(InterfaceError::NotFound),
+		"web" => web::serve(config, state).await,
+		_ => Err(InterfaceNotFound.into()),
 	};
 	
 	if let Err(err) = result {
@@ -41,7 +41,7 @@ impl Interfaces {
 		Interfaces{ configs }
 	}
 	
-	pub async fn serve(&self, state: State) -> Result<(), JoinError> {
+	pub async fn serve(&self, state: State) -> Result<()> {
 		let providers = self.configs.iter()
 		                            .map(|(name, config)| tokio::spawn(serve_interface(name.clone(), config.clone(), state.clone())))
 		                            .collect::<Vec<_>>();
@@ -53,11 +53,5 @@ impl Interfaces {
 }
 
 #[derive(Debug, Error)]
-pub enum InterfaceError {
-	#[error(display = "Interface not found")] NotFound,
-	#[error(display = "Interface failed to serve: {}", _0)] ServeError(Box<dyn std::error::Error>),
-}
-
-impl From<Box<dyn std::error::Error>> for InterfaceError {
-	fn from(err: Box<dyn std::error::Error>) -> Self { InterfaceError::ServeError(err) }
-}
+#[error("Interface not found")]
+pub struct InterfaceNotFound;
