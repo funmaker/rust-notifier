@@ -168,7 +168,7 @@ macro_rules! try_feed (
 
 #[async_trait(?Send)]
 impl Provider for YouTubeProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, _client: reqwest::Client) -> Map<Feed> {
 		let mut skipped_errors = vec![];
 		
 		// Feed -> Channel
@@ -250,7 +250,7 @@ impl Provider for YouTubeProvider {
 				                                     .into_stream()
 			                                  },
 			                                  Ok(mut subs) => {
-				                                  skipped_errors.extend(subs.extract_if(|c| c.is_err()).filter_map(Result::err));
+				                                  skipped_errors.extend(subs.extract_if(.., |c| c.is_err()).filter_map(Result::err));
 				                                  
 				                                  subs.into_iter()
 				                                      .flatten()

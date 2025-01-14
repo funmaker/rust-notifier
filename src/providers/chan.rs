@@ -3,9 +3,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::time;
-use tokio::time::{Duration, Instant};
+use tokio::time::Duration;
 use itertools::Itertools;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use regex::RegexBuilder;
 use tokio_stream::wrappers::IntervalStream;
 use anyhow::Result;
@@ -77,7 +77,7 @@ impl Provider for ChanProvider {
 		                     .unique()
 		                     .into_stream()
 		                     .zip(IntervalStream::new(time::interval(Duration::from_secs(1)))) // 4chan api should be called in 1s intervals
-		                     .map(|(board, time)| async move {
+		                     .map(|(board, _time)| async move {
 			                     let client = client_ref.clone();
 			                     let url = format!("http://a.4cdn.org/{}/catalog.json", board);
 			                     

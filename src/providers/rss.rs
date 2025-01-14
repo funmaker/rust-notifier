@@ -23,7 +23,7 @@ impl RssProvider {
 
 #[async_trait(?Send)]
 impl Provider for RssProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, _client: reqwest::Client) -> Map<Feed> {
 		// Url -> Feed
 		let data = config.values()
 		                 .map(|entry| entry.provider_data.as_str())

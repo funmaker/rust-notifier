@@ -42,7 +42,7 @@ pub async fn main() -> Result<()> {
 	let config = matches.opt_get("c")?
 	                    .unwrap_or("config.json".to_string());
 	
-	println!("Loading config...");
+	println!("Loading config from {config}...");
 	let config = Config::load(config).await?;
 	println!("Config Loaded");
 	

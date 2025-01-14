@@ -52,7 +52,7 @@ struct Channel {
 
 #[async_trait(?Send)]
 impl Provider for VinesauceProvider {
-	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, client: reqwest::Client) -> Map<Feed> {
+	async fn fetch(&mut self, config: Map<&ConfigFeedEntry>, _client: reqwest::Client) -> Map<Feed> {
 		let team_data = reqwest::get("https://vinesauce.com/twitch/team-data-helix.json")
 		                        .map_err(anyhow::Error::new)
 		                        .and_then(|res| res.bytes().map_err(Into::into))
