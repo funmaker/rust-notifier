@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly-alpine as chef
+FROM rustlang/rust:nightly-alpine AS chef
 RUN apk add musl-dev
 RUN cargo install cargo-chef
 WORKDIR /app
@@ -19,5 +19,7 @@ RUN mv ./target/release/rust-notifier ./program
 
 FROM scratch AS runtime
 WORKDIR /app
+EXPOSE 9039
 COPY --from=builder /app/program /app/config_example.json ./
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENTRYPOINT ["/app/program"]
