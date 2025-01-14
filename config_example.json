@@ -39,7 +39,7 @@
             "rest": true,
             "rss": true,
             "websocket": true,
-            "port": 9039
+            "port": 3939
         }
     }
 }
